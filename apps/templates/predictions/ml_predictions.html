@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Farma - Crop Recommendation</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add Marked.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/marked.min.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(90deg, #4ade80 0%, #3b82f6 100%);
+        }
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .confidence-bar {
+            height: 10px;
+            border-radius: 5px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+        .confidence-level {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80 0%, #3b82f6 100%);
+            border-radius: 5px;
+        }
+        .loading {
+            display: none;
+        }
+        .mobile-menu {
+            display: none;
+        }
+        .mobile-menu.active {
+            display: flex;
+        }
+        .suitability-card {
+            background-color: #fef2f2;
+            border-color: #f87171;
+        }
+        .suitability-card.highly-suitable {
+            background-color: #ecfdf5;
+            border-color: #10b981;
+        }
+        .suitability-card.moderately-suitable {
+            background-color: #fefce8;
+            border-color: #facc15;
+        }
+        .gemini-recommendation {
+            background-color: #f0f9ff;
+            border-color: #3b82f6;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+        }
+        .markdown-content {
+            @apply prose prose-sm max-w-none text-gray-700;
+        }
+        .markdown-content h1 {
+            @apply text-xl font-bold mb-4 text-gray-900;
+        }
+        .markdown-content h2 {
+            @apply text-lg font-semibold mb-3 text-gray-800;
+        }
+        .markdown-content h3 {
+            @apply text-base font-semibold mb-2 text-gray-800;
+        }
+        .markdown-content p {
+            @apply mb-3 leading-relaxed;
+        }
+        .markdown-content ul {
+            @apply list-disc list-inside mb-4 space-y-1;
+        }
+        .markdown-content ol {
+            @apply list-decimal list-inside mb-4 space-y-1;
+        }
+        .markdown-content li {
+            @apply mb-1;
+        }
+        .markdown-content li > ul,
+        .markdown-content li > ol {
+            @apply ml-4 mt-1;
+        }
+        .markdown-content strong {
+            @apply font-semibold text-gray-900;
+        }
+        .markdown-content em {
+            @apply italic text-gray-800;
+        }
+        .markdown-content .analysis-section {
+            @apply bg-blue-50 p-4 rounded-lg mb-4;
+        }
+        .markdown-content .recommendations-section {
+            @apply bg-green-50 p-4 rounded-lg mb-4;
+        }
+        .markdown-content .considerations-section {
+            @apply bg-yellow-50 p-4 rounded-lg;
+        }
+        .markdown-content .recommendations-section ol {
+            @apply space-y-4;
+        }
+        .markdown-content .recommendations-section li {
+            @apply mb-4;
+        }
+        .markdown-content .recommendations-section li > ul {
+            @apply mt-2;
+        }
+        .markdown-content .recommendations-section li > ul li {
+            @apply mb-1;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="gradient-bg text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center">
+                <i class="fas fa-leaf text-2xl mr-2" aria-hidden="true"></i>
+                <h1 class="text-xl font-bold">Smart Farma</h1>
+            </div>
+            <div class="md:hidden">
+                <button id="menuToggle" class="text-white focus:outline-none" aria-label="Toggle navigation menu">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto py-10 px-4">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Crop Recommendation System</h2>
+            
+            <form id="predictionForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                        <input type="text" id="location" name="location" placeholder="Enter city, region or specific location" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" required aria-describedby="location-help">
+                        <p id="location-help" class="text-xs text-gray-500">Example: Nairobi, Kenya or Kitale, Trans-Nzoia County</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label for="desiredCrop" class="block text-sm font-medium text-gray-700">Desired Crop (Optional)</label>
+                        <input type="text" id="desiredCrop" name="desiredCrop" placeholder="Enter the crop you want to plant (e.g., maize, rice)" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" aria-describedby="crop-help">
+                        <p id="crop-help" class="text-xs text-gray-500">Leave blank to get the best crop recommendations for your location.</p>
+                    </div>
+                </div>
+                
+                <div class="flex justify-center">
+                    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-300">
+                        <i class="fas fa-search mr-2" aria-hidden="true"></i>
+                        Get Crop Recommendations
+                    </button>
+                </div>
+            </form>
+            <div id="errorMessage" class="hidden text-red-600 text-sm mt-4 text-center"></div>
+        </div>
+        
+        <!-- Loading indicator -->
+        <div id="loading" class="loading flex flex-col items-center justify-center py-10">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+            <p class="mt-4 text-gray-600">Analyzing soil and weather data...</p>
+        </div>
+        
+        <!-- Results Section (initially hidden) -->
+        <div id="resultsSection" class="hidden">
+            <!-- Desired Crop Suitability (if provided) -->
+            <div id="suitabilitySection" class="hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Desired Crop Suitability</h3>
+                <div id="suitabilityCard" class="suitability-card p-5 rounded-lg border">
+                    <h4 id="suitabilityCrop" class="text-lg font-semibold mb-2 text-gray-800">-</h4>
+                    <p id="suitabilityMessage" class="text-gray-600 mb-4">-</p>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm font-medium text-gray-700">Confidence Score</span>
+                        <span id="suitabilityConfidence" class="text-sm font-medium text-gray-700">-</span>
+                    </div>
+                    <div class="confidence-bar">
+                        <div id="suitabilityConfidenceBar" class="confidence-level" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Prediction Results -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Prediction Results</h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Main Recommendation -->
+                    <div class="col-span-1 lg:col-span-1">
+                        <div class="bg-gradient-to-br from-green-50 to-blue-50 p-6 rounded-lg border border-green-200 result-card">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-lg font-bold text-gray-800">Primary Recommendation</h4>
+                                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Best Match</span>
+                            </div>
+                            
+                            <div class="flex items-center justify-center my-6">
+                                <div class="text-center">
+                                    <div class="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+                                        <i id="primaryCropIcon" class="fas fa-seedling text-4xl text-green-600" aria-hidden="true"></i>
+                                    </div>
+                                    <h3 id="primaryCrop" class="mt-4 text-2xl font-bold text-gray-800">-</h3>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-sm font-medium text-gray-700">Confidence Score</span>
+                                        <span id="primaryConfidence" class="text-sm font-medium text-gray-700">-</span>
+                                    </div>
+                                    <div class="confidence-bar">
+                                        <div id="primaryConfidenceBar" class="confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                                    <p id="primaryDescription">
+                                        The AI model has analyzed soil data, climate conditions, and historical crop performance to determine this recommendation.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alternative Recommendations -->
+                    <div class="col-span-1 lg:col-span-2">
+                        <div class="bg-white p-6 rounded-lg border border-gray-200 result-card h-full">
+                            <h4 class="text-lg font-bold text-gray-800 mb-4">Alternative Recommendations</h4>
+                            
+                            <div id="alternativeRecommendations" class="space-y-4">
+                                <!-- Alternative 1 -->
+                                <div class="alternative-crop">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center">
+                                            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                <i id="altCropIcon0" class="fas fa-leaf text-blue-600" aria-hidden="true"></i>
+                                            </div>
+                                            <span class="alt-crop-name font-medium text-gray-800">-</span>
+                                        </div>
+                                        <span class="alt-crop-confidence text-sm text-gray-600">-</span>
+                                    </div>
+                                    <div class="mt-2 confidence-bar">
+                                        <div class="alt-confidence-bar confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Alternative 2 -->
+                                <div class="alternative-crop">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center">
+                                            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                <i id="altCropIcon1" class="fas fa-seedling text-blue-600" aria-hidden="true"></i>
+                                            </div>
+                                            <span class="alt-crop-name font-medium text-gray-800">-</span>
+                                        </div>
+                                        <span class="alt-crop-confidence text-sm text-gray-600">-</span>
+                                    </div>
+                                    <div class="mt-2 confidence-bar">
+                                        <div class="alt-confidence-bar confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gemini Recommendations -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">AI Farming Recommendations</h3>
+                <div id="geminiRecommendation" class="gemini-recommendation">
+                    <div id="geminiRecommendationText" class="markdown-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configure Marked.js options
+        marked.setOptions({
+            breaks: true,  // Convert line breaks to <br>
+            gfm: true,     // GitHub Flavored Markdown
+            headerIds: true,
+            mangle: false
+        });
+
+        // JavaScript to handle form submission and display results
+        document.getElementById('predictionForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const location = document.getElementById('location').value;
+            const desiredCrop = document.getElementById('desiredCrop').value;
+            
+            // Show loading indicator
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('resultsSection').classList.add('hidden');
+            document.getElementById('errorMessage').classList.add('hidden');
+            document.getElementById('errorMessage').textContent = '';
+
+            // Fetch model input features from backend
+            fetch(`/data/model-input?location=${encodeURIComponent(location)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch model input features');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    // Prepare payload for prediction
+                    const payload = {
+                        features: data.features,
+                        location: location,
+                        location_id: data.location_id,
+                        desired_crop: desiredCrop
+                    };
+                    // Fetch predictions from backend
+                    return fetch('/data/predict', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch predictions');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Hide loading indicator
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('resultsSection').classList.remove('hidden');
+
+                    // Handle errors
+                    if (data.error) {
+                        document.getElementById('errorMessage').textContent = data.error;
+                        document.getElementById('errorMessage').classList.remove('hidden');
+                        document.getElementById('resultsSection').classList.add('hidden');
+                        return;
+                    }
+
+                    // Update primary recommendation
+                    if (data.predictions && data.predictions.length > 0) {
+                        const primary = data.predictions[0];
+                        document.getElementById('primaryCrop').textContent = primary.crop;
+                        document.getElementById('primaryConfidence').textContent = `${Math.round(primary.probability * 100)}%`;
+                        document.getElementById('primaryConfidenceBar').style.width = `${Math.round(primary.probability * 100)}%`;
+                    }
+
+                    // Update alternative recommendations
+                    if (data.predictions) {
+                        data.predictions.slice(1).forEach((alt, index) => {
+                            const altElement = document.querySelector(`#alternativeRecommendations .alternative-crop:nth-child(${index + 1})`);
+                            if (altElement) {
+                                altElement.querySelector('.alt-crop-name').textContent = alt.crop;
+                                altElement.querySelector('.alt-crop-confidence').textContent = `${Math.round(alt.probability * 100)}%`;
+                                altElement.querySelector('.alt-confidence-bar').style.width = `${Math.round(alt.probability * 100)}%`;
+                            }
+                        });
+                    }
+
+                    // Update suitability section
+                    if (data.suitability) {
+                        document.getElementById('suitabilitySection').classList.remove('hidden');
+                        document.getElementById('suitabilityCrop').textContent = data.suitability.crop;
+                        document.getElementById('suitabilityMessage').textContent = data.suitability.message;
+                        if (data.suitability.confidence !== undefined) {
+                            document.getElementById('suitabilityConfidence').textContent = `${Math.round(data.suitability.confidence * 100)}%`;
+                            document.getElementById('suitabilityConfidenceBar').style.width = `${Math.round(data.suitability.confidence * 100)}%`;
+                        } else {
+                            document.getElementById('suitabilityConfidence').textContent = '-';
+                            document.getElementById('suitabilityConfidenceBar').style.width = '0%';
+                        }
+                        // Set card color based on suitability status
+                        const card = document.getElementById('suitabilityCard');
+                        card.classList.remove('highly-suitable', 'moderately-suitable');
+                        if (data.suitability.status === 'highly suitable') {
+                            card.classList.add('highly-suitable');
+                        } else if (data.suitability.status === 'moderately suitable') {
+                            card.classList.add('moderately-suitable');
+                        }
+                    } else {
+                        document.getElementById('suitabilitySection').classList.add('hidden');
+                    }
+
+                    // Update Gemini recommendation with Markdown conversion
+                    const geminiContent = document.getElementById('geminiRecommendationText');
+                    if (data.openai_recommendation) {
+                        console.log('Raw Gemini recommendation:', data.openai_recommendation); // Debugging
+                        // Convert Markdown to HTML using Marked.js
+                        let htmlContent = marked.parse(data.openai_recommendation);
+                        console.log('Parsed HTML content:', htmlContent); // Debugging
+                        
+                        // Wrap sections in styled divs based on content
+                        htmlContent = htmlContent
+                            .replace(/<h2[^>]*>Assessment:?<\/h2>/gi, '<div class="analysis-section"><h2>Assessment:</h2>')
+                            .replace(/<h2[^>]*>Diagnosis:?<\/h2>/gi, '<div class="analysis-section"><h2>Diagnosis:</h2>')
+                            .replace(/<h2[^>]*>Recommendations:?<\/h2>/gi, '</div><div class="recommendations-section"><h2>Recommendations:</h2>')
+                            .replace(/<h2[^>]*>Important Considerations:?<\/h2>/gi, '</div><div class="considerations-section"><h2>Important Considerations:</h2>')
+                            + '</div>';
+                        
+                        geminiContent.innerHTML = htmlContent;
+                    } else {
+                        geminiContent.textContent = 'No recommendations available.';
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('resultsSection').classList.add('hidden');
+                    document.getElementById('errorMessage').textContent = error.message;
+                    document.getElementById('errorMessage').classList.remove('hidden');
+                    console.error('Error fetching predictions:', error);
+                });
+        });
+
+        // Note: The updateResults function is not used in the form submission but included for compatibility
+        function updateResults(data) {
+            const resultsSection = document.getElementById('resultsSection');
+            const loadingIndicator = document.getElementById('loading');
+            
+            // Hide loading indicator
+            loadingIndicator.classList.add('hidden');
+            
+            // Show results section
+            resultsSection.classList.remove('hidden');
+            
+            // Update primary recommendation
+            const primaryCrop = data.predictions[0];
+            document.getElementById('primaryCrop').textContent = primaryCrop.crop;
+            document.getElementById('primaryConfidence').textContent = `${Math.round(primaryCrop.confidence * 100)}%`;
+            document.getElementById('primaryConfidenceBar').style.width = `${Math.round(primaryCrop.confidence * 100)}%`;
+            document.getElementById('primaryDescription').textContent = primaryCrop.description;
+            
+            // Update alternative recommendations
+            const alternativesList = document.getElementById('alternativeRecommendations');
+            alternativesList.innerHTML = '';
+            
+            data.predictions.slice(1).forEach((crop, index) => {
+                const div = document.createElement('div');
+                div.className = 'alternative-crop';
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                <i class="fas fa-leaf text-blue-600"></i>
+                            </div>
+                            <span class="alt-crop-name font-medium text-gray-800">${crop.crop}</span>
+                        </div>
+                        <span class="alt-crop-confidence text-sm text-gray-600">${Math.round(crop.confidence * 100)}%</span>
+                    </div>
+                    <div class="mt-2 confidence-bar">
+                        <div class="alt-confidence-bar confidence-level" style="width: ${Math.round(crop.confidence * 100)}%"></div>
+                    </div>
+                `;
+                alternativesList.appendChild(div);
+            });
+
+            // Update Gemini recommendations with Markdown conversion
+            const geminiContent = document.getElementById('geminiRecommendationText');
+            if (data.openai_recommendation) {
+                console.log('Raw Gemini recommendation (updateResults):', data.openai_recommendation); // Debugging
+                // Convert Markdown to HTML using Marked.js
+                let htmlContent = marked.parse(data.openai_recommendation);
+                console.log('Parsed HTML content (updateResults):', htmlContent); // Debugging
+                
+                // Wrap sections in styled divs based on content
+                htmlContent = htmlContent
+                    .replace(/<h2[^>]*>Assessment:?<\/h2>/gi, '<div class="analysis-section"><h2>Assessment:</h2>')
+                    .replace(/<h2[^>]*>Diagnosis:?<\/h2>/gi, '<div class="analysis-section"><h2>Diagnosis:</h2>')
+                    .replace(/<h2[^>]*>Recommendations:?<\/h2>/gi, '</div><div class="recommendations-section"><h2>Recommendations:</h2>')
+                    .replace(/<h2[^>]*>Important Considerations:?<\/h2>/gi, '</div><div class="considerations-section"><h2>Important Considerations:</h2>')
+                    + '</div>';
+                
+                geminiContent.innerHTML = htmlContent;
+            } else {
+                geminiContent.textContent = 'No recommendations available.';
+            }
+        }
+    </script>
+</body>
+</html>

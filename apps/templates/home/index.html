@@ -1,0 +1,133 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Dashboard {% endblock %} 
+
+{% block stylesheets %}
+<!-- Add any additional styles here if needed -->
+{% endblock stylesheets %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+
+  <!-- Summary Cards -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card text-white bg-primary mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Total Locations</h5>
+          <p class="card-text h3">{{ total_locations }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-success mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Soil Records</h5>
+          <p class="card-text h3">{{ total_soil_records }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-info mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Weather Records</h5>
+          <p class="card-text h3">{{ total_weather_records }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-white bg-warning mb-3">
+        <div class="card-body">
+          <h5 class="card-title">Predictions Made</h5>
+          <p class="card-text h3">{{ total_predictions }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Predictions Table -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          Recent Predictions
+        </div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Location</th>
+                <th>Crop Recommended</th>
+                <th>Confidence (%)</th>
+                <th>Suitable</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pred in recent_predictions %}
+              <tr>
+                <td>{{ pred.location.name }}</td>
+                <td>{{ pred.crop_recommended }}</td>
+                <td>{{ "%.2f"|format(pred.confidence_score * 100) }}</td>
+                <td>
+                  {% if pred.is_suitable %}
+                    <span class="badge bg-success">Yes</span>
+                  {% else %}
+                    <span class="badge bg-danger">No</span>
+                  {% endif %}
+                </td>
+                <td>{{ pred.timestamp.strftime('%Y-%m-%d') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crop Recommendation Chart -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          Crop Recommendation Distribution
+        </div>
+        <div class="card-body">
+          <canvas id="cropChart" height="100"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock content %}
+
+{% block javascripts %}
+<script src="/static/assets/js/plugins/chartjs.min.js"></script>
+<script>
+  const ctx = document.getElementById('cropChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: {{ labels|tojson }},
+      datasets: [{
+        label: 'Crop Recommendations',
+        data: {{ data|tojson }},
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      scales: {
+        y: {
+          beginAtZero: true
+        }
+      }
+    }
+  });
+</script>
+{% endblock javascripts %}

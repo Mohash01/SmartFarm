@@ -1,0 +1,227 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Location Analysis {% endblock %}
+
+{% block stylesheets %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    #map { height: 400px; }
+    .gradient-bg {
+        background: linear-gradient(90deg, #4ade80 0%, #3b82f6 100%);
+    }
+    .card {
+        transition: all 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock stylesheets %}
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-4 ">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">Location Analysis</h2>
+        <p class="text-gray-600">Explore the locations where crop predictions have been made, including a map, prediction statistics, and soil nutrient analysis.</p>
+    </div>
+
+    <!-- Map -->
+    <div class="bg-white rounded-lg shadow-lg p-6  card">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Prediction Locations</h3>
+        {% if location_data and location_data|length > 0 %}
+            <div id="map"></div>
+        {% else %}
+            <p class="text-gray-600">No locations available. Make a prediction to add locations.</p>
+        {% endif %}
+    </div>
+
+    <!-- Graphs -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- Predictions per Location -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Predictions per Location</h3>
+            {% if prediction_chart_data and prediction_chart_data.labels and prediction_chart_data.labels|length > 0 %}
+                <canvas id="predictionChart"></canvas>
+            {% else %}
+                <p class="text-gray-600">No prediction data available.</p>
+            {% endif %}
+        </div>
+
+        <!-- Crop Distribution -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Crop Distribution</h3>
+            {% if crop_chart_data and crop_chart_data.labels and crop_chart_data.labels|length > 0 %}
+                <canvas id="cropChart"></canvas>
+            {% else %}
+                <p class="text-gray-600">No crop data available.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Soil Nutrients -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8 card">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Soil Nutrients Analysis</h3>
+        {% if soil_chart_data and soil_chart_data|length > 0 %}
+            <canvas id="soilChart"></canvas>
+        {% else %}
+            <p class="text-gray-600">No soil data available.</p>
+        {% endif %}
+    </div>
+
+    <!-- Summary Table -->
+    <div class="bg-white rounded-lg shadow-lg p-6 card">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">Location Summary</h3>
+        {% if summary_data and summary_data|length > 0 %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white">
+                    <thead>
+                        <tr class="gradient-bg text-white">
+                            <th class="py-3 px-4 text-left">Location</th>
+                            <th class="py-3 px-4 text-left">Latitude</th>
+                            <th class="py-3 px-4 text-left">Longitude</th>
+                            <th class="py-3 px-4 text-left">Predictions</th>
+                            <th class="py-3 px-4 text-left">Most Common Crop</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in summary_data %}
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="py-3 px-4">{{ item.name }}</td>
+                                <td class="py-3 px-4">{{ "%.6f"|format(item.latitude) }}</td>
+                                <td class="py-3 px-4">{{ "%.6f"|format(item.longitude) }}</td>
+                                <td class="py-3 px-4">{{ item.prediction_count }}</td>
+                                <td class="py-3 px-4">{{ item.most_common_crop|title }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-gray-600">No location data available.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock content %}
+
+{% block javascripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<script>
+    // Initialize Map
+    {% if location_data and location_data|length > 0 %}
+        var locations = {{ location_data|tojson }};
+        var avgLat = locations.reduce(function(sum, loc) { return sum + loc.latitude; }, 0) / locations.length;
+        var avgLon = locations.reduce(function(sum, loc) { return sum + loc.longitude; }, 0) / locations.length;
+
+        var map = L.map('map').setView([avgLat, avgLon], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+
+        locations.forEach(function(loc) {
+            L.marker([loc.latitude, loc.longitude])
+                .addTo(map)
+                .bindPopup('<b>' + loc.name + '</b><br>Predictions: ' + loc.prediction_count);
+        });
+    {% endif %}
+
+    // Predictions per Location Bar Chart
+    {% if prediction_chart_data and prediction_chart_data.labels and prediction_chart_data.labels|length > 0 %}
+        var predictionChart = new Chart(document.getElementById('predictionChart'), {
+            type: 'bar',
+            data: {
+                labels: {{ prediction_chart_data.labels|tojson }},
+                datasets: [{
+                    label: 'Number of Predictions',
+                    data: {{ prediction_chart_data.counts|tojson }},
+                    backgroundColor: 'rgba(74, 222, 128, 0.6)',
+                    borderColor: 'rgba(74, 222, 128, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        title: { display: true, text: 'Predictions' } 
+                    },
+                    x: { 
+                        title: { display: true, text: 'Location' } 
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    {% endif %}
+
+    // Crop Distribution Pie Chart
+    {% if crop_chart_data and crop_chart_data.labels and crop_chart_data.labels|length > 0 %}
+        var cropChart = new Chart(document.getElementById('cropChart'), {
+            type: 'pie',
+            data: {
+                labels: {{ crop_chart_data.labels|tojson }},
+                datasets: [{
+                    data: {{ crop_chart_data.counts|tojson }},
+                    backgroundColor: [
+                        'rgba(74, 222, 128, 0.6)',
+                        'rgba(59, 130, 246, 0.6)',
+                        'rgba(250, 204, 21, 0.6)',
+                        'rgba(239, 68, 68, 0.6)',
+                        'rgba(147, 51, 234, 0.6)'
+                    ]
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'right' }
+                }
+            }
+        });
+    {% endif %}
+
+    // Soil Nutrients Scatter Plot
+    {% if soil_chart_data and soil_chart_data|length > 0 %}
+        var soilData = {{ soil_chart_data|tojson }};
+        var soilChart = new Chart(document.getElementById('soilChart'), {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Soil Nutrients (N vs P, colored by K)',
+                    data: soilData.map(function(item) {
+                        return {
+                            x: item.nitrogen,
+                            y: item.phosphorus,
+                            r: Math.min(item.potassium / 10, 20),
+                            location: item.location
+                        };
+                    }),
+                    backgroundColor: soilData.map(function(item) {
+                        var opacity = Math.min(item.potassium / 200, 0.8);
+                        return 'rgba(59, 130, 246, ' + opacity + ')';
+                    })
+                }]
+            },
+            options: {
+                scales: {
+                    x: { title: { display: true, text: 'Nitrogen (ppm)' } },
+                    y: { title: { display: true, text: 'Phosphorus (ppm)' } }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                var item = context.raw;
+                                return item.location + ': N=' + item.x.toFixed(1) + ', P=' + item.y.toFixed(1) + ', K=' + (item.r * 10).toFixed(1) + ' ppm';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    {% endif %}
+</script>
+{% endblock javascripts %}

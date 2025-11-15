@@ -1,0 +1,67 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Soil Data {% endblock %} 
+
+<!-- Specific Page CSS goes HERE  -->
+{% block stylesheets %}
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+{% endblock stylesheets %}
+
+{% block content %}
+  <div class="container-fluid py-4">
+    <div class="row min-vh-80 h-100">
+      <div class="col-12">
+        <h2>Soil Data Records</h2>
+        {% if soil_records %}
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Location</th>
+                <th>Nitrogen (N)</th>
+                <th>Phosphorus (P)</th>
+                <th>Potassium (K)</th>
+                <th>pH</th>
+                <th>Date Recorded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in soil_records %}
+                <tr>
+                  <td>{{ record.id }}</td>
+                  <td>{{ record.location.name if record.location else record.location_id }}</td>
+                  <td>{{ record.nitrogen }}</td>
+                  <td>{{ record.phosphorus }}</td>
+                  <td>{{ record.potassium }}</td>
+                  <td>{{ record.ph }}</td>
+                  <td>{{ record.date_recorded.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p>No soil data records found.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% include 'includes/footer.html' %}
+  </div>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

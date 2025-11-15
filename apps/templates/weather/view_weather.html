@@ -1,0 +1,65 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Weather Data {% endblock %} 
+
+<!-- Specific Page CSS goes HERE  -->
+{% block stylesheets %}
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+{% endblock stylesheets %}
+
+{% block content %}
+  <div class="container-fluid py-4">
+    <div class="row min-vh-80 h-100">
+      <div class="col-12">
+        <h2>Weather Data Records</h2>
+        {% if weather_records %}
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Location</th>
+                <th>Temperature (°C)</th>
+                <th>Humidity (%)</th>
+                <th>Rainfall (mm)</th>
+                <th>Date Recorded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in weather_records %}
+                <tr>
+                  <td>{{ record.id }}</td>
+                  <td>{{ record.location.name if record.location else record.location_id }}</td>
+                  <td>{{ record.temperature }}</td>
+                  <td>{{ record.humidity }}</td>
+                  <td>{{ record.rainfall }}</td>
+                  <td>{{ record.date_recorded.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p>No weather data records found.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% include 'includes/footer.html' %}
+  </div>
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}

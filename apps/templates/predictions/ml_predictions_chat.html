@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Farma - AI Crop Assistant</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/marked.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f7f7f8;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: #ffffff;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s;
+        }
+
+        .sidebar.hidden {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .prediction-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: #f9fafb;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e5e7eb;
+        }
+
+        .prediction-item:hover {
+            background: #f0f9ff;
+            border-color: #10b981;
+        }
+
+        .prediction-crop {
+            font-weight: 600;
+            color: #10b981;
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .prediction-location {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .prediction-time {
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            left: 280px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 0.75rem 0.5rem;
+            border-radius: 0 0.5rem 0.5rem 0;
+            cursor: pointer;
+            z-index: 100;
+            transition: left 0.3s;
+        }
+
+        .sidebar-toggle.sidebar-hidden {
+            left: 0;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 0.25rem;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #374151;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .detail-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .detail-item {
+            background: #f9fafb;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .detail-value {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .confidence-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .confidence-high {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .confidence-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .confidence-low {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 100%;
+            margin: 0 auto;
+            background: #ffffff;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .header-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .header-btn {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            color: white;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .message {
+            display: flex;
+            gap: 1rem;
+            max-width: 48rem;
+            margin: 0 auto;
+            width: 100%;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-avatar {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 1.25rem;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .message-content {
+            flex: 1;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            line-height: 1.6;
+        }
+
+        .message.user .message-content {
+            background: #f3f4f6;
+            color: #1f2937;
+        }
+
+        .message.assistant .message-content {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            color: #374151;
+        }
+
+        .message-content h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #10b981;
+        }
+
+        .message-content p {
+            margin-bottom: 0.75rem;
+        }
+
+        .message-content ul, .message-content ol {
+            margin-left: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .message-content li {
+            margin-bottom: 0.5rem;
+        }
+
+        .message-content strong {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .crop-recommendation {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            margin: 0.5rem 0;
+        }
+
+        .confidence-badge {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .input-area {
+            padding: 1.5rem;
+            border-top: 1px solid #e5e7eb;
+            background: white;
+        }
+
+        .input-container {
+            max-width: 48rem;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .input-form {
+            display: flex;
+            gap: 0.75rem;
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 1.5rem;
+            padding: 0.75rem;
+            transition: all 0.3s;
+        }
+
+        .input-form:focus-within {
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .input-field {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 1rem;
+            padding: 0.5rem;
+            color: #1f2937;
+        }
+
+        .input-field::placeholder {
+            color: #9ca3af;
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 1rem;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .send-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .welcome-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .welcome-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            color: #10b981;
+        }
+
+        .welcome-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.125rem;
+            color: #6b7280;
+            margin-bottom: 2rem;
+        }
+
+        .example-prompts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            max-width: 48rem;
+            width: 100%;
+        }
+
+        .example-prompt {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 1rem;
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .example-prompt:hover {
+            border-color: #10b981;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .example-prompt-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .example-prompt-text {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .loading-indicator {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+
+        .loading-dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            background: #10b981;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
+        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        @media (max-width: 768px) {
+            .header-title {
+                font-size: 1rem;
+            }
+            .welcome-title {
+                font-size: 1.5rem;
+            }
+            .example-prompts {
+                grid-template-columns: 1fr;
+            }
+            .message {
+                gap: 0.75rem;
+            }
+            .message-avatar {
+                width: 2rem;
+                height: 2rem;
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Toggle Button -->
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+            <i class="fas fa-history"></i>
+        </button>
+
+        <!-- Sidebar with Prediction History -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span><i class="fas fa-clock-rotate-left"></i> Your Predictions</span>
+            </div>
+            <div class="sidebar-content" id="sidebarContent">
+                <p style="text-align: center; color: #9ca3af; padding: 2rem 1rem; font-size: 0.875rem;">
+                    Login to see your prediction history
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Chat Container -->
+        <div class="chat-container" style="flex: 1;">
+            <!-- Header -->
+            <div class="header">
+                <div class="header-left">
+                    <i class="fas fa-leaf"></i>
+                    <span class="header-title">Smart Farma AI Assistant</span>
+                </div>
+                <div class="header-actions">
+                    {% if current_user.is_authenticated %}
+                        <div class="user-info">
+                            <i class="fas fa-user"></i>
+                            <span>{{ current_user.username }}</span>
+                        </div>
+                        <a href="/logout" class="header-btn">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    {% else %}
+                        <a href="/register" class="header-btn">
+                            <i class="fas fa-user-plus"></i> Sign Up
+                        </a>
+                        <a href="/login" class="header-btn">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                        <a href="/admin/login" class="header-btn">
+                            <i class="fas fa-user-shield"></i> Admin
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+        <!-- Messages Area -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-icon">
+                    <i class="fas fa-seedling"></i>
+                </div>
+                <h1 class="welcome-title">Welcome to Smart Farma</h1>
+                <p class="welcome-subtitle">Your AI-powered crop recommendation assistant</p>
+                
+                <div class="example-prompts">
+                    <div class="example-prompt" onclick="useExample('What crops can I grow in Nairobi, Kenya?')">
+                        <div class="example-prompt-title">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Location-based advice
+                        </div>
+                        <div class="example-prompt-text">What crops can I grow in Nairobi, Kenya?</div>
+                    </div>
+                    
+                    <div class="example-prompt" onclick="useExample('Is maize suitable for Kitale region?')">
+                        <div class="example-prompt-title">
+                            <i class="fas fa-check-circle"></i>
+                            Crop suitability
+                        </div>
+                        <div class="example-prompt-text">Is maize suitable for Kitale region?</div>
+                    </div>
+                    
+                    <div class="example-prompt" onclick="useExample('Best crops for Trans-Nzoia County')">
+                        <div class="example-prompt-title">
+                            <i class="fas fa-star"></i>
+                            Best recommendations
+                        </div>
+                        <div class="example-prompt-text">Best crops for Trans-Nzoia County</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-container">
+                <form class="input-form" id="chatForm">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <input 
+                            type="text" 
+                            id="locationInput" 
+                            class="input-field" 
+                            placeholder="📍 Location (e.g., Nairobi, Kitale, Mombasa, Trans-Nzoia)..."
+                            required
+                            style="border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem;"
+                        >
+                        <input 
+                            type="text" 
+                            id="cropInput" 
+                            class="input-field" 
+                            placeholder="🌾 Optional: Specific crop to check (e.g., maize, rice, coffee, banana)..."
+                            style="font-size: 0.875rem; color: #6b7280;"
+                        >
+                    </div>
+                    <button type="submit" class="send-btn" id="sendBtn">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Send</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Prediction Details Modal -->
+    <div class="modal-overlay" id="predictionModal" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Prediction Details</span>
+                </div>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be injected here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const chatForm = document.getElementById('chatForm');
+        const locationInput = document.getElementById('locationInput');
+        const cropInput = document.getElementById('cropInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarContent = document.getElementById('sidebarContent');
+        let isProcessing = false;
+        let sidebarVisible = true;
+
+        // Load user's prediction history
+        async function loadPredictionHistory() {
+            try {
+                const response = await fetch('/data/user/predictions', {
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    displayPredictionHistory(data.predictions);
+                } else if (response.status === 401) {
+                    sidebarContent.innerHTML = `
+                        <p style="text-align: center; color: #9ca3af; padding: 2rem 1rem; font-size: 0.875rem;">
+                            <i class="fas fa-lock"></i><br><br>
+                            Login to see your prediction history
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading prediction history:', error);
+            }
+        }
+
+        function displayPredictionHistory(predictions) {
+            if (!predictions || predictions.length === 0) {
+                sidebarContent.innerHTML = `
+                    <p style="text-align: center; color: #9ca3af; padding: 2rem 1rem; font-size: 0.875rem;">
+                        <i class="fas fa-seedling"></i><br><br>
+                        No predictions yet.<br>Start asking about crops!
+                    </p>
+                `;
+                return;
+            }
+
+            sidebarContent.innerHTML = predictions.map(pred => `
+                <div class="prediction-item" onclick="loadPredictionDetails(${pred.id})">
+                    <div class="prediction-crop">
+                        <i class="fas fa-leaf"></i> ${pred.crop_recommended}
+                    </div>
+                    <div class="prediction-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        ${pred.location_name}
+                    </div>
+                    <div class="prediction-time">
+                        <i class="fas fa-clock"></i> ${pred.timestamp}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function loadPredictionDetails(predictionId) {
+            try {
+                // Find the prediction from the cached list
+                const response = await fetch('/data/user/predictions', {
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    console.error('Failed to load predictions');
+                    return;
+                }
+                
+                const data = await response.json();
+                const prediction = data.predictions.find(p => p.id === predictionId);
+                
+                if (!prediction) {
+                    console.error('Prediction not found');
+                    return;
+                }
+                
+                // Build modal content
+                const confidence = (prediction.confidence_score * 100).toFixed(1);
+                const confidenceClass = confidence >= 70 ? 'confidence-high' : 
+                                       confidence >= 40 ? 'confidence-medium' : 'confidence-low';
+                
+                const modalBody = document.getElementById('modalBody');
+                modalBody.innerHTML = `
+                    <div class="detail-section">
+                        <h3 style="font-size: 1.5rem; color: #10b981; margin-bottom: 0.5rem;">
+                            <i class="fas fa-leaf"></i> ${prediction.crop_recommended}
+                        </h3>
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                            <span class="confidence-badge ${confidenceClass}">
+                                <i class="fas fa-${confidence >= 70 ? 'check-circle' : confidence >= 40 ? 'exclamation-circle' : 'times-circle'}"></i>
+                                ${confidence}% Confidence
+                            </span>
+                            <span style="color: #6b7280; font-size: 0.875rem;">
+                                <i class="fas fa-map-marker-alt"></i> ${prediction.location_name}
+                            </span>
+                        </div>
+                        <div style="padding: 0.75rem; background: ${prediction.is_suitable ? '#d1fae5' : '#fee2e2'}; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            <p style="margin: 0; color: ${prediction.is_suitable ? '#065f46' : '#991b1b'}; font-weight: 500;">
+                                <i class="fas fa-${prediction.is_suitable ? 'check' : 'exclamation-triangle'}"></i>
+                                ${prediction.is_suitable ? 'Suitable for this location' : 'Not suitable for this location'}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <div class="detail-section-title">
+                            <i class="fas fa-flask"></i> Soil Nutrients (NPK)
+                        </div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-atom" style="color: #3b82f6;"></i>
+                                    Nitrogen (N)
+                                </div>
+                                <div class="detail-value">${prediction.nitrogen}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-atom" style="color: #f59e0b;"></i>
+                                    Phosphorus (P)
+                                </div>
+                                <div class="detail-value">${prediction.phosphorus}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-atom" style="color: #8b5cf6;"></i>
+                                    Potassium (K)
+                                </div>
+                                <div class="detail-value">${prediction.potassium}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-tint" style="color: #10b981;"></i>
+                                    pH Level
+                                </div>
+                                <div class="detail-value">${prediction.ph}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <div class="detail-section-title">
+                            <i class="fas fa-cloud-sun"></i> Environmental Conditions
+                        </div>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-thermometer-half" style="color: #ef4444;"></i>
+                                    Temperature
+                                </div>
+                                <div class="detail-value">${prediction.temperature}°C</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">
+                                    <i class="fas fa-tint" style="color: #3b82f6;"></i>
+                                    Humidity
+                                </div>
+                                <div class="detail-value">${prediction.humidity}%</div>
+                            </div>
+                            <div class="detail-item" style="grid-column: span 2;">
+                                <div class="detail-label">
+                                    <i class="fas fa-cloud-rain" style="color: #06b6d4;"></i>
+                                    Rainfall
+                                </div>
+                                <div class="detail-value">${prediction.rainfall} mm</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section" style="margin-bottom: 0;">
+                        <div class="detail-label" style="margin-bottom: 0.5rem;">
+                            <i class="fas fa-clock"></i>
+                            Predicted on
+                        </div>
+                        <div style="color: #6b7280;">${prediction.timestamp}</div>
+                    </div>
+                `;
+                
+                // Show modal
+                document.getElementById('predictionModal').classList.add('active');
+            } catch (error) {
+                console.error('Error loading prediction details:', error);
+            }
+        }
+        
+        function closeModal(event) {
+            if (!event || event.target.id === 'predictionModal') {
+                document.getElementById('predictionModal').classList.remove('active');
+            }
+        }
+
+        function toggleSidebar() {
+            sidebarVisible = !sidebarVisible;
+            sidebar.classList.toggle('hidden');
+            sidebarToggle.classList.toggle('sidebar-hidden');
+        }
+
+        // Load prediction history on page load
+        loadPredictionHistory();
+
+        function useExample(text) {
+            locationInput.value = text;
+            cropInput.value = '';
+            locationInput.focus();
+        }
+
+        function addMessage(content, type) {
+            if (welcomeScreen) {
+                welcomeScreen.remove();
+            }
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.innerHTML = type === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-leaf"></i>';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = content;
+            
+            if (type === 'user') {
+                messageDiv.appendChild(contentDiv);
+                messageDiv.appendChild(avatar);
+            } else {
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentDiv);
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function addLoadingMessage() {
+            const loadingContent = `
+                <div class="loading-indicator">
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                    <div class="loading-dot"></div>
+                </div>
+            `;
+            addMessage(loadingContent, 'assistant');
+        }
+
+        function removeLastMessage() {
+            const messages = chatMessages.querySelectorAll('.message');
+            if (messages.length > 0) {
+                messages[messages.length - 1].remove();
+            }
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (isProcessing || !locationInput.value.trim()) return;
+            
+            const location = locationInput.value.trim();
+            const desiredCrop = cropInput.value.trim();
+            isProcessing = true;
+            sendBtn.disabled = true;
+            
+            // Add user message
+            const userMessage = desiredCrop ? 
+                `📍 <strong>${location}</strong><br>🌾 Check suitability: ${desiredCrop}` : 
+                `📍 ${location}`;
+            addMessage(userMessage, 'user');
+            locationInput.value = '';
+            cropInput.value = '';
+            
+            // Add loading indicator
+            addLoadingMessage();
+            
+            try {
+                // Step 1: Fetch model input features (soil + weather data) from backend
+                const modelInputResponse = await fetch(`/data/model-input?location=${encodeURIComponent(location)}`, {
+                    credentials: 'same-origin'
+                });
+                
+                if (!modelInputResponse.ok) {
+                    throw new Error('Failed to fetch model input features');
+                }
+                
+                const modelInputData = await modelInputResponse.json();
+                
+                if (modelInputData.error) {
+                    throw new Error(modelInputData.error);
+                }
+                
+                // Step 2: Send features to prediction endpoint
+                const payload = {
+                    features: modelInputData.features,
+                    location: location,
+                    location_id: modelInputData.location_id,
+                    desired_crop: desiredCrop || null
+                };
+                
+                const response = await fetch('/data/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                // Remove loading indicator
+                removeLastMessage();
+                
+                if (data.error) {
+                    addMessage(`<p><strong>Error:</strong> ${data.error}</p>`, 'assistant');
+                } else {
+                    // Format the response
+                    let responseContent = `
+                        <h3>🌾 Crop Recommendations for ${modelInputData.location_name || location}</h3>
+                    `;
+                    
+                    // Primary recommendation
+                    if (data.predictions && data.predictions.length > 0) {
+                        const primary = data.predictions[0];
+                        responseContent += `
+                            <div class="crop-recommendation">
+                                <i class="fas fa-seedling"></i>
+                                <span>Top Recommendation: ${primary.crop}</span>
+                                <span class="confidence-badge">${Math.round(primary.probability * 100)}% confidence</span>
+                            </div>
+                        `;
+                        
+                        // Alternative recommendations
+                        if (data.predictions.length > 1) {
+                            responseContent += `<p><strong>📋 Alternative Crops:</strong></p><ul>`;
+                            data.predictions.slice(1, 4).forEach(alt => {
+                                responseContent += `<li>${alt.crop} (${Math.round(alt.probability * 100)}% confidence)</li>`;
+                            });
+                            responseContent += `</ul>`;
+                        }
+                    }
+                    
+                    // Soil & Weather data
+                    if (modelInputData.features) {
+                        const f = modelInputData.features;
+                        responseContent += `
+                            <p><strong>📊 Environmental Conditions:</strong></p>
+                            <ul>
+                                <li>Nitrogen (N): ${f.n || f.N || 'N/A'} mg/kg</li>
+                                <li>Phosphorus (P): ${f.p || f.P || 'N/A'} mg/kg</li>
+                                <li>Potassium (K): ${f.k || f.K || 'N/A'} mg/kg</li>
+                                <li>pH Level: ${f.ph || 'N/A'}</li>
+                                <li>Temperature: ${f.temperature || 'N/A'}°C</li>
+                                <li>Humidity: ${f.humidity || 'N/A'}%</li>
+                                <li>Rainfall: ${f.rainfall || 'N/A'}mm</li>
+                            </ul>
+                        `;
+                    }
+                    
+                    // Suitability check
+                    if (data.suitability) {
+                        const suitIcon = data.suitability.status === 'highly suitable' ? '✅' : 
+                                       data.suitability.status === 'moderately suitable' ? '⚠️' : '❌';
+                        responseContent += `
+                            <p><strong>${suitIcon} Suitability Check:</strong></p>
+                            <p>${data.suitability.message}</p>
+                        `;
+                    }
+                    
+                    // AI recommendation (only show if available and not an error)
+                    if (data.openai_recommendation && !data.openai_recommendation.includes('Error')) {
+                        responseContent += `
+                            <p><strong>💡 AI Insights:</strong></p>
+                            <div style="background: #f0f9ff; padding: 1rem; border-radius: 0.5rem; margin-top: 0.5rem;">
+                                ${marked.parse(data.openai_recommendation)}
+                            </div>
+                        `;
+                    }
+                    
+                    addMessage(responseContent, 'assistant');
+                    
+                    // Reload prediction history after successful prediction
+                    loadPredictionHistory();
+                }
+                
+            } catch (error) {
+                removeLastMessage();
+                addMessage(`<p><strong>Error:</strong> ${error.message || 'Failed to get recommendations. Please try again.'}</p>`, 'assistant');
+                console.error('Error:', error);
+            } finally {
+                isProcessing = false;
+                sendBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

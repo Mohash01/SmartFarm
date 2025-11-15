@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Farma - Crop Recommendation</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(90deg, #4ade80 0%, #3b82f6 100%);
+        }
+        .result-card {
+            transition: all 0.3s ease;
+        }
+        .result-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        .confidence-bar {
+            height: 10px;
+            border-radius: 5px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+        .confidence-level {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80 0%, #3b82f6 100%);
+            border-radius: 5px;
+        }
+        .loading {
+            display: none;
+        }
+        .mobile-menu {
+            display: none;
+        }
+        .mobile-menu.active {
+            display: flex;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="gradient-bg text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <div class="flex items-center">
+                <i class="fas fa-leaf text-2xl mr-2" aria-hidden="true"></i>
+                <h1 class="text-xl font-bold">Smart Farma</h1>
+            </div>
+            <div class="md:hidden">
+                <button id="menuToggle" class="text-white focus:outline-none" aria-label="Toggle navigation menu">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+            <div class="hidden md:flex space-x-6">
+                <a href="#" class="hover:text-green-200">Home</a>
+                <a href="#" class="hover:text-green-200">Dashboard</a>
+                <a href="#" class="hover:text-green-200">About</a>
+                <a href="#" class="hover:text-green-200">Contact</a>
+            </div>
+        </div>
+        <div id="mobileMenu" class="mobile-menu flex-col space-y-4 mt-4 md:hidden">
+            <a href="#" class="hover:text-green-200">Home</a>
+            <a href="#" class="hover:text-green-200">Dashboard</a>
+            <a href="#" class="hover:text-green-200">About</a>
+            <a href="#" class="hover:text-green-200">Contact</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto py-10 px-4">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Crop Recommendation System</h2>
+            
+            <form id="predictionForm" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-2">
+                        <label for="location" class="block text-sm font-medium text-gray-700">Location</label>
+                        <input type="text" id="location" name="location" placeholder="Enter city, region or specific location" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500" required aria-describedby="location-help">
+                        <p id="location-help" class="text-xs text-gray-500">Example: Nairobi, Kenya or Kitale, Trans-Nzoia County</p>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">Additional Information</label>
+                        <div class="p-4 bg-blue-50 rounded-md">
+                            <p class="text-sm text-blue-800">
+                                <i class="fas fa-info-circle mr-2" aria-hidden="true"></i>
+                                The system will automatically fetch soil and weather data for your location to provide accurate crop recommendations.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-center">
+                    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-300">
+                        <i class="fas fa-search mr-2" aria-hidden="true"></i>
+                        Get Crop Recommendations
+                    </button>
+                </div>
+            </form>
+            <div id="errorMessage" class="hidden text-red-600 text-sm mt-4 text-center"></div>
+        </div>
+        
+        <!-- Loading indicator -->
+        <div id="loading" class="loading flex flex-col items-center justify-center py-10">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+            <p class="mt-4 text-gray-600">Analyzing soil and weather data...</p>
+        </div>
+        
+        <!-- Results Section (initially hidden) -->
+        <div id="resultsSection" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Prediction Results</h3>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Main Recommendation -->
+                    <div class="col-span-1 lg:col-span-1">
+                        <div class="bg-gradient-to-br from-green-50 to-blue-50 p-6 rounded-lg border border-green-200 result-card">
+                            <div class="flex justify-between items-start">
+                                <h4 class="text-lg font-bold text-gray-800">Primary Recommendation</h4>
+                                <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Best Match</span>
+                            </div>
+                            
+                            <div class="flex items-center justify-center my-6">
+                                <div class="text-center">
+                                    <div class="w-24 h-24 mx-auto bg-green-100 rounded-full flex items-center justify-center">
+                                        <i id="primaryCropIcon" class="fas fa-seedling text-4xl text-green-600" aria-hidden="true"></i>
+                                    </div>
+                                    <h3 id="primaryCrop" class="mt-4 text-2xl font-bold text-gray-800">-</h3>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <span class="text-sm font-medium text-gray-700">Confidence Score</span>
+                                        <span id="primaryConfidence" class="text-sm font-medium text-gray-700">-</span>
+                                    </div>
+                                    <div class="confidence-bar">
+                                        <div id="primaryConfidenceBar" class="confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
+                                    <p id="primaryDescription">
+                                        The AI model has analyzed soil data, climate conditions, and historical crop performance to determine this recommendation.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alternative Recommendations -->
+                    <div class="col-span-1 lg:col-span-2">
+                        <div class="bg-white p-6 rounded-lg border border-gray-200 result-card h-full">
+                            <h4 class="text-lg font-bold text-gray-800 mb-4">Alternative Recommendations</h4>
+                            
+                            <div id="alternativeRecommendations" class="space-y-4">
+                                <!-- Alternative 1 -->
+                                <div class="alternative-crop">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center">
+                                            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                <i class="fas fa-leaf text-blue-600" aria-hidden="true"></i>
+                                            </div>
+                                            <span class="alt-crop-name font-medium text-gray-800">-</span>
+                                        </div>
+                                        <span class="alt-crop-confidence text-sm text-gray-600">-</span>
+                                    </div>
+                                    <div class="mt-2 confidence-bar">
+                                        <div class="alt-confidence-bar confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Alternative 2 -->
+                                <div class="alternative-crop">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center">
+                                            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                <i class="fas fa-seedling text-blue-600" aria-hidden="true"></i>
+                                            </div>
+                                            <span class="alt-crop-name font-medium text-gray-800">-</span>
+                                        </div>
+                                        <span class="alt-crop-confidence text-sm text-gray-600">-</span>
+                                    </div>
+                                    <div class="mt-2 confidence-bar">
+                                        <div class="alt-confidence-bar confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Alternative 3 -->
+                                <div class="alternative-crop">
+                                    <div class="flex justify-between items-center">
+                                        <div class="flex items-center">
+                                            <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                                <i class="fas fa-wheat-awn text-blue-600" aria-hidden="true"></i>
+                                            </div>
+                                            <span class="alt-crop-name font-medium text-gray-800">-</span>
+                                        </div>
+                                        <span class="alt-crop-confidence text-sm text-gray-600">-</span>
+                                    </div>
+                                    <div class="mt-2 confidence-bar">
+                                        <div class="alt-confidence-bar confidence-level" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6 p-4 bg-yellow-50 rounded-md">
+                                <p class="text-sm text-yellow-800">
+                                    <i class="fas fa-lightbulb mr-2" aria-hidden="true"></i>
+                                    These alternatives may be suitable if your primary recommendation isn't feasible due to seed availability, market demand, or personal preference.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Data Used Section -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Data Used for Prediction</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Soil Data -->
+                    <div class="bg-gray-50 p-5 rounded-lg">
+                        <h4 class="text-md font-semibold mb-3 text-gray-700 flex items-center">
+                            <i class="fas fa-mountain mr-2 text-brown-600" aria-hidden="true"></i>
+                            Soil Characteristics
+                        </h4>
+                        
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Nitrogen (N):</span>
+                                <span id="dataN" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Phosphorus (P):</span>
+                                <span id="dataP" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Potassium (K):</span>
+                                <span id="dataK" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">pH Level:</span>
+                                <span id="dataPH" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Climate Data -->
+                    <div class="bg-gray-50 p-5 rounded-lg">
+                        <h4 class="text-md font-semibold mb-3 text-gray-700 flex items-center">
+                            <i class="fas fa-cloud-sun mr-2 text-blue-600" aria-hidden="true"></i>
+                            Climate Conditions
+                        </h4>
+                        
+                        <div class="space-y-3">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Temperature:</span>
+                                <span id="dataTemp" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Humidity:</span>
+                                <span id="dataHumidity" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Rainfall:</span>
+                                <span id="dataRainfall" class="text-sm font-medium text-gray-800">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Crop Information -->
+            <div id="cropInfoSection" class="bg-white rounded-lg shadow-lg p-6">
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Crop Information</h3>
+                
+                <div id="cropInfo" class="p-5 bg-gray-50 rounded-lg">
+                    <h4 id="cropInfoName" class="text-lg font-semibold mb-2 text-gray-800">-</h4>
+                    <p id="cropInfoDescription" class="text-gray-600 mb-4">-</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <h5 class="font-medium text-gray-700 mb-2">Growing Conditions</h5>
+                            <ul id="cropGrowingConditions" class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                <li>Loading...</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h5 class="font-medium text-gray-700 mb-2">Care Instructions</h5>
+                            <ul id="cropCareInstructions" class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                <li>Loading...</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="gradient-bg text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <div class="flex items-center">
+                        <i class="fas fa-leaf text-2xl mr-2" aria-hidden="true"></i>
+                        <h2 class="text-xl font-bold">Smart Farma</h2>
+                    </div>
+                    <p class="text-sm mt-2">Empowering farmers with AI-driven recommendations</p>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="#" class="text-white hover:text-green-200" aria-label="Facebook">
+                        <i class="fab fa-facebook-f"></i>
+                    </a>
+                    <a href="#" class="text-white hover:text-green-200" aria-label="Twitter">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="#" class="text-white hover:text-green-200" aria-label="Instagram">
+                        <i class="fab fa-instagram"></i>
+                    </a>
+                    <a href="#" class="text-white hover:text-green-200" aria-label="LinkedIn">
+                        <i class="fab fa-linkedin-in"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="mt-6 border-t border-white/20 pt-6 text-center text-sm">
+                <p>© 2025 Smart Farma. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Crop database for detailed information
+        const cropDatabase = {
+            'rice': {
+                description: 'Rice is a staple food for over half the world. It\'s a cereal grain that grows in paddy fields.',
+                growingConditions: [
+                    'Prefers warm temperatures (20-35°C)',
+                    'Requires standing water or very moist soil',
+                    'Ideal pH: 5.5-6.5',
+                    'High nitrogen requirement'
+                ],
+                careInstructions: [
+                    'Maintain water level 2-5 cm above soil',
+                    'Apply nitrogen fertilizer at critical growth stages',
+                    'Control weeds before establishing the crop',
+                    'Harvest when 80-85% of grains are straw-colored'
+                ]
+            },
+            'maize': {
+                description: 'Maize (corn) is one of the most important cereal crops worldwide, used for food, feed, and industrial purposes.',
+                growingConditions: [
+                    'Optimal temperature range: 18-32°C',
+                    'Requires full sun exposure',
+                    'Needs well-drained soil with good organic content',
+                    'Ideal pH: 5.8-6.8'
+                ],
+                careInstructions: [
+                    'Plant when soil temperature reaches 10-12°C',
+                    'Space rows 75-90 cm apart',
+                    'Apply nitrogen fertilizer when plants are knee-high',
+                    'Ensure adequate irrigation during tasseling and silking stages'
+                ]
+            },
+            'chickpea': {
+                description: 'Chickpea is a nutritious legume crop that can fix nitrogen in the soil, making it valuable in crop rotations.',
+                growingConditions: [
+                    'Optimal temperature range: 15-25°C',
+                    'Drought tolerant after establishment',
+                    'Prefers well-drained soils',
+                    'Ideal pH: 6.0-8.0'
+                ],
+                careInstructions: [
+                    'Inoculate seeds with Rhizobium bacteria before planting',
+                    'Plant early in the season for maximum yield',
+                    'Control weeds during early growth stages',
+                    'Monitor for pod borers during flowering and pod formation'
+                ]
+            },
+            'kidneybeans': {
+                description: 'Kidney beans are nutritious legumes that are rich in protein, fiber, and various minerals.',
+                growingConditions: [
+                    'Optimal temperature range: 18-25°C',
+                    'Sensitive to frost and extreme heat',
+                    'Requires well-drained, fertile soil',
+                    'Ideal pH: 6.0-7.5'
+                ],
+                careInstructions: [
+                    'Plant after all danger of frost has passed',
+                    'Space rows 50-60 cm apart',
+                    'Provide support for climbing varieties',
+                    'Water regularly, especially during flowering and pod development'
+                ]
+            },
+            'pigeonpeas': {
+                description: 'Pigeon peas are drought-resistant legumes that can grow in poor soil conditions, making them valuable for sustainable agriculture.',
+                growingConditions: [
+                    'Optimal temperature range: 20-30°C',
+                    'Extremely drought tolerant',
+                    'Can grow in various soil types, even poor soils',
+                    'Ideal pH: 5.0-7.0'
+                ],
+                careInstructions: [
+                    'Plant at the beginning of the rainy season',
+                    'Space plants according to variety (tall or dwarf)',
+                    'Minimal irrigation required after establishment',
+                    'Can be grown as a perennial for up to 3-5 years'
+                ]
+            },
+            'mothbeans': {
+                description: 'Moth bean is a drought-resistant legume crop grown primarily in arid regions for food and fodder.',
+                growingConditions: [
+                    'Thrives in hot, dry conditions (25-35°C)',
+                    'Extremely drought tolerant',
+                    'Grows well in sandy or sandy loam soils',
+                    'Ideal pH: 6.5-7.5'
+                ],
+                careInstructions: [
+                    'Sow at the onset of monsoon rains',
+                    'Minimal irrigation required',
+                    'Intercropping with millets is common',
+                    'Harvest when 80% of pods are mature'
+                ]
+            },
+            'mungbean': {
+                description: 'Mung bean is a fast-growing legume that\'s high in protein, fiber, and antioxidants.',
+                growingConditions: [
+                    'Optimal temperature range: 20-35°C',
+                    'Requires warm soil for germination',
+                    'Prefers well-drained, loamy soil',
+                    'Ideal pH: 6.2-7.2'
+                ],
+                careInstructions: [
+                    'Sow seeds 2-4 cm deep',
+                    'Space rows 30-45 cm apart',
+                    'Avoid waterlogging',
+                    'Harvest when 80% of pods turn black or brown'
+                ]
+            },
+            'blackgram': {
+                description: 'Black gram is an important pulse crop with high nutritional value and soil-improving properties.',
+                growingConditions: [
+                    'Optimal temperature range: 25-35°C',
+                    'Moderately drought tolerant',
+                    'Prefers well-drained, loamy soil',
+                    'Ideal pH: 6.5-7.5'
+                ],
+                careInstructions: [
+                    'Can be grown as a rain-fed or irrigated crop',
+                    'Apply phosphorus fertilizer before sowing',
+                    'Control weeds during early growth stages',
+                    'Harvest when 80% of pods turn black'
+                ]
+            },
+            'lentil': {
+                description: 'Lentils are nutritious legumes that are a good source of protein, fiber, and various minerals.',
+                growingConditions: [
+                    'Cool season crop (15-25°C)',
+                    'Moderately drought tolerant',
+                    'Prefers well-drained, loamy soil',
+                    'Ideal pH: 6.0-8.0'
+                ],
+                careInstructions: [
+                    'Plant in fall or early spring depending on climate',
+                    'Shallow planting depth (2-5 cm)',
+                    'Minimal irrigation required in most conditions',
+                    'Harvest when lower pods turn brown and rattle'
+                ]
+            },
+            'pomegranate': {
+                description: 'Pomegranate is a fruit-bearing deciduous shrub known for its juicy arils and health benefits.',
+                growingConditions: [
+                    'Thrives in hot, dry climates',
+                    'Can tolerate temperatures up to 40°C',
+                    'Requires full sun exposure',
+                    'Prefers well-drained soil'
+                ],
+                careInstructions: [
+                    'Water deeply but infrequently',
+                    'Prune during winter dormancy',
+                    'Fertilize in early spring',
+                    'Protect from frost in colder regions'
+                ]
+            },
+            'banana': {
+                description: 'Bananas are tropical fruits that grow on large herbaceous plants. They are rich in potassium and other nutrients.',
+                growingConditions: [
+                    'Optimal temperature range: 26-30°C',
+                    'High humidity requirements',
+                    'Requires shelter from strong winds',
+                    'Prefers deep, well-drained, fertile soil'
+                ],
+                careInstructions: [
+                    'Regular watering to maintain soil moisture',
+                    'High potassium fertilizer requirements',
+                    'Remove suckers to maintain plant density',
+                    'Protect fruit bunches with bags if necessary'
+                ]
+            },
+            'mango': {
+                description: 'Mango is a tropical fruit known as the "King of Fruits." It\'s juicy, sweet, and nutritious.',
+                growingConditions: [
+                    'Optimal temperature range: 24-30°C',
+                    'Requires a dry period for flowering',
+                    'Needs full sun exposure',
+                    'Prefers deep, well-drained soil'
+                ],
+                careInstructions: [
+                    'Prune to maintain shape and height',
+                    'Water deeply during fruit development',
+                    'Protect from frost in subtropical regions',
+                    'Apply fertilizer three times per year'
+                ]
+            },
+            'grapes': {
+                description: 'Grapes are woody perennial vines that produce clusters of berries used for wine, juice, table consumption, and dried as raisins.',
+                growingConditions: [
+                    'Full sun exposure required',
+                    'Wide temperature adaptability depending on variety',
+                    'Prefers well-drained soil',
+                    'Ideal pH: 5.5-7.0'
+                ],
+                careInstructions: [
+                    'Regular pruning is essential',
+                    'Trellis or support system required',
+                    'Proper canopy management for disease prevention',
+                    'Monitor for pests like grape berry moths'
+                ]
+            },
+            'watermelon': {
+                description: 'Watermelon is a warm-season crop known for its sweet, juicy red flesh and high water content.',
+                growingConditions: [
+                    'Optimal temperature range: 25-30°C',
+                    'Requires full sun exposure',
+                    'Needs well-drained, sandy loam soil',
+                    'Ideal pH: 6.0-6.8'
+                ],
+                careInstructions: [
+                    'Plant after all danger of frost has passed',
+                    'Space plants 1.5-2m apart',
+                    'Regular watering until fruit reaches full size',
+                    'Reduce watering during ripening for sweeter fruit'
+                ]
+            },
+            'muskmelon': {
+                description: 'Muskmelon (cantaloupe) is a sweet, aromatic fruit that belongs to the gourd family.',
+                growingConditions: [
+                    'Optimal temperature range: 24-32°C',
+                    'Requires full sun exposure',
+                    'Prefers well-drained, fertile soil',
+                    'Ideal pH: 6.0-6.8'
+                ],
+                careInstructions: [
+                    'Plant when soil temperature reaches 18°C',
+                    'Space plants 90-120 cm apart',
+                    'Consistent watering during growth and fruit development',
+                    'Use mulch to retain moisture and prevent fruit contact with soil'
+                ]
+            },
+            'apple': {
+                description: 'Apples are one of the most widely cultivated tree fruits known for their crisp texture and variety of flavors.',
+                growingConditions: [
+                    'Requires winter chill hours (variety dependent)',
+                    'Prefers full sun exposure',
+                    'Needs well-drained, fertile soil',
+                    'Ideal pH: 6.0-7.0'
+                ],
+                careInstructions: [
+                    'Regular pruning for shape and productivity',
+                    'Thin fruits for larger size and quality',
+                    'Monitor for pests like codling moth',
+                    'Apply dormant sprays during winter'
+                ]
+            },
+            'orange': {
+                description: 'Oranges are citrus fruits known for their vitamin C content and refreshing juice.',
+                growingConditions: [
+                    'Optimal temperature range: 15-30°C',
+                    'Sensitive to frost',
+                    'Requires full sun exposure',
+                    'Prefers well-drained, slightly acidic soil'
+                ],
+                careInstructions: [
+                    'Regular watering during dry periods',
+                    'Fertilize three times per year',
+                    'Prune to maintain airflow and sunlight penetration',
+                    'Monitor for citrus pests like scale insects'
+                ]
+            },
+            'papaya': {
+                description: 'Papaya is a tropical fruit known for its sweet taste and digestive benefits.',
+                growingConditions: [
+                    'Optimal temperature range: 22-30°C',
+                    'Extremely frost sensitive',
+                    'Requires full sun exposure',
+                    'Prefers well-drained, rich soil'
+                ],
+                careInstructions: [
+                    'Regular watering to maintain consistent moisture',
+                    'Apply balanced fertilizer monthly',
+                    'Protect from strong winds',
+                    'Plants are typically productive for 3-5 years'
+                ]
+            },
+            'coconut': {
+                description: 'Coconut palm is a tropical tree that produces coconuts, which provide food, water, oil, and various materials.',
+                growingConditions: [
+                    'Optimal temperature range: 27-30°C',
+                    'Requires high humidity',
+                    'Needs full sun exposure',
+                    'Tolerates sandy and saline soils'
+                ],
+                careInstructions: [
+                    'Regular watering during establishment',
+                    'Apply balanced fertilizer twice yearly',
+                    'Protect from cold temperatures',
+                    'Typically begins bearing at 5-7 years of age'
+                ]
+            },
+            'cotton': {
+                description: 'Cotton is a fiber crop used for textiles and other industrial products.',
+                growingConditions: [
+                    'Optimal temperature range: 20-30°C',
+                    'Requires full sun exposure',
+                    'Prefers well-drained, fertile soil',
+                    'Ideal pH: 5.5-7.5'
+                ],
+                careInstructions: [
+                    'Plant after soil temperatures reach 15°C',
+                    'Control weeds during early growth stages',
+                    'Monitor for bollworms and other pests',
+                    'Defoliate before harvest to improve quality'
+                ]
+            },
+            'jute': {
+                description: 'Jute is a long, soft, shiny bast fiber that can be spun into coarse, strong threads for making burlap and other textiles.',
+                growingConditions: [
+                    'Optimal temperature range: 24-35°C',
+                    'Requires high humidity and rainfall',
+                    'Prefers loamy soil with good water retention',
+                    'Ideal pH: 6.0-7.5'
+                ],
+                careInstructions: [
+                    'Sow at the beginning of the rainy season',
+                    'Maintain adequate soil moisture throughout growth',
+                    'Thin plants for proper spacing',
+                    'Harvest when flowers have just fallen'
+                ]
+            },
+            'coffee': {
+                description: 'Coffee is a brewed drink prepared from roasted coffee beans, the seeds of berries from certain flowering plants.',
+                growingConditions: [
+                    'Optimal temperature range: 15-24°C',
+                    'Prefers partial shade (shade-grown)',
+                    'Requires well-drained soil rich in organic matter',
+                    'Ideal pH: 6.0-6.5'
+                ],
+                careInstructions: [
+                    'Protect from frost and extreme heat',
+                    'Mulch to conserve soil moisture',
+                    'Prune to maintain productive height',
+                    'Begin harvest when cherries turn bright red'
+                ]
+            }
+        };
+
+        // Function to validate input
+        function validateLocation(location) {
+            const validLocationPattern = /^[a-zA-Z0-9\s,.-]+$/;
+            return validLocationPattern.test(location);
+        }
+
+        // Function to get prediction from the backend
+        function getPrediction(location) {
+            // Reset previous errors
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.classList.add('hidden');
+            errorMessage.textContent = '';
+
+            // Show loading indicator
+            document.getElementById('loading').style.display = 'flex';
+            document.getElementById('resultsSection').classList.add('hidden');
+
+            // Set a timeout to prevent infinite loading
+            const timeout = setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+                errorMessage.textContent = 'Request timed out. Please try again.';
+                errorMessage.classList.remove('hidden');
+            }, 10000);
+
+            // Fetch model input features and predictions from the backend
+            fetch(`/data/model-input?location=${encodeURIComponent(location)}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch model input data: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    // Display the input data used for prediction
+                    displayInputData(data.features);
+
+                    // Fetch predictions using the standardized features
+                    return fetch('/data/predict', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ features: data.features })
+                    });
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch predictions: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    clearTimeout(timeout);
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    // Display the prediction results
+                    displayResults(data.predictions);
+                })
+                .catch(error => {
+                    clearTimeout(timeout);
+                    console.error('Error:', error);
+                    document.getElementById('loading').style.display = 'none';
+                    errorMessage.textContent = error.message || 'Error fetching data or predictions. Please try another location or check your connection.';
+                    errorMessage.classList.remove('hidden');
+                });
+        }
+
+        // Function to display the input data used for the prediction
+        function displayInputData(features) {
+            document.getElementById('dataN').textContent = features.N ? `${features.N.toFixed(2)} mg/kg` : 'Not available';
+            document.getElementById('dataP').textContent = features.P ? `${features.P.toFixed(2)} mg/kg` : 'Not available';
+            document.getElementById('dataK').textContent = features.K ? `${features.K.toFixed(2)} mg/kg` : 'Not available';
+            document.getElementById('dataPH').textContent = features.pH ? features.pH.toFixed(2) : 'Not available';
+            document.getElementById('dataTemp').textContent = features.temperature ? `${features.temperature.toFixed(1)}°C` : 'Not available';
+            document.getElementById('dataHumidity').textContent = features.humidity ? `${features.humidity.toFixed(1)}%` : 'Not available';
+            document.getElementById('dataRainfall').textContent = features.rainfall ? `${features.rainfall.toFixed(1)} mm` : 'Not available';
+        }
+
+        // Function to display the prediction results
+        function displayResults(predictions) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('resultsSection').classList.remove('hidden');
+
+            if (!predictions || predictions.length === 0) {
+                document.getElementById('errorMessage').textContent = 'No predictions available. Please try a different location.';
+                document.getElementById('errorMessage').classList.remove('hidden');
+                return;
+            }
+
+            // Primary recommendation
+            const primaryPrediction = predictions[0];
+            document.getElementById('primaryCrop').textContent = capitalizeFirstLetter(primaryPrediction.crop);
+            document.getElementById('primaryConfidence').textContent = `${(primaryPrediction.probability * 100).toFixed(1)}%`;
+            document.getElementById('primaryConfidenceBar').style.width = `${primaryPrediction.probability * 100}%`;
+            setCropIcon('primaryCropIcon', primaryPrediction.crop);
+
+            // Alternative recommendations
+            const altElements = document.querySelectorAll('.alternative-crop');
+            const altNames = document.querySelectorAll('.alt-crop-name');
+            const altConfidences = document.querySelectorAll('.alt-crop-confidence');
+            const altBars = document.querySelectorAll('.alt-confidence-bar');
+
+            altElements.forEach((el, i) => {
+                if (i < 3) {
+                    if (i + 1 < predictions.length) {
+                        const altPrediction = predictions[i + 1];
+                        altNames[i].textContent = capitalizeFirstLetter(altPrediction.crop);
+                        altConfidences[i].textContent = `${(altPrediction.probability * 100).toFixed(1)}%`;
+                        altBars[i].style.width = `${altPrediction.probability * 100}%`;
+                        el.style.display = 'block';
+                        const iconElement = el.querySelector('i');
+                        setCropIcon(iconElement.id || `altCropIcon${i}`, altPrediction.crop);
+                    } else {
+                        el.style.display = 'none';
+                    }
+                }
+            });
+
+            // Display crop information for the primary recommendation
+            displayCropInfo(primaryPrediction.crop);
+        }
+
+        // Function to display crop information
+        function displayCropInfo(cropName) {
+            const cropInfo = cropDatabase[cropName.toLowerCase()];
+
+            if (cropInfo) {
+                document.getElementById('cropInfoName').textContent = capitalizeFirstLetter(cropName);
+                document.getElementById('cropInfoDescription').textContent = cropInfo.description;
+
+                const growingConditionsList = document.getElementById('cropGrowingConditions');
+                growingConditionsList.innerHTML = '';
+                cropInfo.growingConditions.forEach(condition => {
+                    const li = document.createElement('li');
+                    li.textContent = condition;
+                    li.className = 'text-sm text-gray-600';
+                    growingConditionsList.appendChild(li);
+                });
+
+                const careInstructionsList = document.getElementById('cropCareInstructions');
+                careInstructionsList.innerHTML = '';
+                cropInfo.careInstructions.forEach(instruction => {
+                    const li = document.createElement('li');
+                    li.textContent = instruction;
+                    li.className = 'text-sm text-gray-600';
+                    careInstructionsList.appendChild(li);
+                });
+            } else {
+                document.getElementById('cropInfoName').textContent = capitalizeFirstLetter(cropName);
+                document.getElementById('cropInfoDescription').textContent = 'Detailed information not available for this crop.';
+                document.getElementById('cropGrowingConditions').innerHTML = '<li>Information not available</li>';
+                document.getElementById('cropCareInstructions').innerHTML = '<li>Information not available</li>';
+            }
+        }
+
+        // Helper function to set appropriate icon for crop
+        function setCropIcon(elementId, cropName) {
+            const iconElement = document.getElementById(elementId) || document.querySelector(`#${elementId}`);
+            if (!iconElement) return;
+
+            const cropIconMap = {
+                'rice': 'fa-wheat-awn',
+                'maize': 'fa-wheat-awn',
+                'chickpea': 'fa-seedling',
+                'kidneybeans': 'fa-seedling',
+                'pigeonpeas': 'fa-seedling',
+                'mothbeans': 'fa-seedling',
+                'mungbean': 'fa-seedling',
+                'blackgram': 'fa-seedling',
+                'lentil': 'fa-seedling',
+                'pomegranate': 'fa-apple-whole',
+                'banana': 'fa-apple-whole',
+                'mango': 'fa-apple-whole',
+                'grapes': 'fa-apple-whole',
+                'watermelon': 'fa-apple-whole',
+                'muskmelon': 'fa-apple-whole',
+                'apple': 'fa-apple-whole',
+                'orange': 'fa-apple-whole',
+                'papaya': 'fa-apple-whole',
+                'coconut': 'fa-apple-whole',
+                'cotton': 'fa-leaf',
+                'jute': 'fa-leaf',
+                'coffee': 'fa-mug-hot'
+            };
+
+            const iconClass = cropIconMap[cropName.toLowerCase()] || 'fa-seedling';
+            iconElement.className = `fas ${iconClass} text-4xl text-green-600`;
+        }
+
+        // Helper function to capitalize the first letter of a string
+        function capitalizeFirstLetter(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
+        }
+
+        // Form submission event handler
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const location = document.getElementById('location').value.trim();
+
+            if (!location) {
+                document.getElementById('errorMessage').textContent = 'Please enter a location.';
+                document.getElementById('errorMessage').classList.remove('hidden');
+                return;
+            }
+
+            if (!validateLocation(location)) {
+                document.getElementById('errorMessage').textContent = 'Please enter a valid location (letters, numbers, commas, spaces, and periods only).';
+                document.getElementById('errorMessage').classList.remove('hidden');
+                return;
+            }
+
+            getPrediction(location);
+        });
+
+        // Mobile menu toggle
+        document.getElementById('menuToggle').addEventListener('click', function() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            mobileMenu.classList.toggle('active');
+        });
+    </script>
+</body>
+</html>

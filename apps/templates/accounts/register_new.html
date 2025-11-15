@@ -1,0 +1,216 @@
+{% extends "layouts/base-fullscreen.html" %}
+
+{% block title %} Sign Up - Smart Farma {% endblock %} 
+
+<!-- Specific Page CSS goes HERE  -->
+{% block stylesheets %}
+<style>
+    .gradient-green {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+    .input-floating {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+    .input-floating input {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 0.75rem;
+        font-size: 1rem;
+        transition: all 0.3s;
+        background: white;
+    }
+    .input-floating input:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    }
+    .input-floating label {
+        position: absolute;
+        left: 1rem;
+        top: 1rem;
+        color: #9ca3af;
+        font-size: 1rem;
+        transition: all 0.3s;
+        pointer-events: none;
+        background: white;
+        padding: 0 0.25rem;
+    }
+    .input-floating input:focus + label,
+    .input-floating input:not(:placeholder-shown) + label {
+        top: -0.5rem;
+        left: 0.75rem;
+        font-size: 0.75rem;
+        color: #10b981;
+        font-weight: 600;
+    }
+    .feature-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+    }
+    .feature-icon {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 0.75rem;
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+
+<div class="page-header min-vh-100" style="background: #f9fafb;">
+    <div class="container">
+        <div class="row align-items-center" style="min-height: 100vh;">
+            <!-- Left Side - Features -->
+            <div class="col-lg-6 d-none d-lg-block pe-5">
+                <div class="mb-4">
+                    <i class="fas fa-leaf text-success" style="font-size: 3rem;"></i>
+                    <h1 class="font-weight-bolder mt-3" style="font-size: 2.5rem; color: #1f2937;">
+                        Join Smart Farma
+                    </h1>
+                    <p class="text-muted" style="font-size: 1.125rem;">
+                        Get AI-powered crop recommendations tailored to your location
+                    </p>
+                </div>
+
+                <div class="row g-4 mt-4">
+                    <div class="col-12">
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <h5 class="font-weight-bold mb-2">AI-Powered Recommendations</h5>
+                            <p class="text-muted mb-0">Get intelligent crop suggestions based on soil and weather data</p>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-map-marked-alt"></i>
+                            </div>
+                            <h5 class="font-weight-bold mb-2">Location-Specific Insights</h5>
+                            <p class="text-muted mb-0">Receive recommendations tailored to your exact location</p>
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="feature-card">
+                            <div class="feature-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h5 class="font-weight-bold mb-2">Real-Time Analysis</h5>
+                            <p class="text-muted mb-0">Access up-to-date soil and weather information instantly</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Side - Registration Form -->
+            <div class="col-lg-6 col-md-8 col-12 mx-auto">
+                <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <div class="gradient-green d-inline-flex align-items-center justify-content-center rounded-circle mb-3" 
+                                 style="width: 4rem; height: 4rem;">
+                                <i class="fas fa-user-plus text-white" style="font-size: 1.75rem;"></i>
+                            </div>
+                            <h3 class="font-weight-bolder mb-2">Create Your Account</h3>
+                            <p class="text-muted">
+                                {% if msg %}
+                                    <span class="text-danger">{{ msg | safe }}</span>
+                                {% else %}
+                                    Start your journey to smarter farming
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        {% if success %}
+                            <div class="alert alert-success text-center" role="alert">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Account created successfully! Please sign in to continue.
+                            </div>
+                            <div class="text-center mt-4">
+                                <a href="{{ url_for('authentication_blueprint.login') }}" 
+                                   class="btn gradient-green btn-lg w-100 text-white"
+                                   style="border-radius: 0.75rem; padding: 1rem;">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Sign In Now
+                                </a>
+                            </div>
+                        {% else %}
+                            <form role="form" method="post" action="">
+                                {{ form.hidden_tag() }}
+
+                                <div class="input-floating">
+                                    {{ form.username(class="form-control", placeholder=" ", required=True) }}
+                                    <label>Username</label>
+                                </div>
+
+                                <div class="input-floating">
+                                    {{ form.email(class="form-control", type="email", placeholder=" ", required=True) }}
+                                    <label>Email Address</label>
+                                </div>
+
+                                <div class="input-floating">
+                                    {{ form.password(class="form-control", type="password", placeholder=" ", required=True) }}
+                                    <label>Password</label>
+                                </div>
+
+                                <div class="form-check mb-4">
+                                    <input class="form-check-input" type="checkbox" value="" id="agreeTerms" required>
+                                    <label class="form-check-label text-sm" for="agreeTerms">
+                                        I agree to the <a href="javascript:;" class="text-success font-weight-bold">Terms and Conditions</a>
+                                    </label>
+                                </div>
+
+                                <button type="submit" name="register" 
+                                        class="btn gradient-green btn-lg w-100 text-white mb-3"
+                                        style="border-radius: 0.75rem; padding: 1rem;">
+                                    <i class="fas fa-user-plus me-2"></i>Create Account
+                                </button>
+                            </form>
+
+                            <div class="text-center">
+                                <p class="text-muted mb-2">Already have an account?</p>
+                                <a href="{{ url_for('authentication_blueprint.login') }}" 
+                                   class="btn btn-outline-success btn-sm"
+                                   style="border-radius: 0.75rem; padding: 0.75rem 2rem;">
+                                    <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Mobile Features Preview -->
+                <div class="d-lg-none mt-4">
+                    <div class="text-center text-muted">
+                        <p class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>AI-Powered Recommendations</p>
+                        <p class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Location-Specific Insights</p>
+                        <p class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>Real-Time Analysis</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}{% endblock javascripts %}
