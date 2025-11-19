@@ -9,9 +9,9 @@
     },
     "bugs": {
         "url": "https://github.com/app-generator/boilerplate-code-flask-dashboard/issues",
-        "email": "support@appseed.us"
+        "email": "example@gmail.com"
     },
-    "author": "AppSeed App Generator <support@appseed.us> (https://appseed.us)",
+    "author": "AppSeed App Generator <example@gmail.com> (https://example.com)",
     "engines": {
         "node": ">=10.0.0"
     },

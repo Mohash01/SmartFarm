@@ -33,17 +33,17 @@ db.init_app(app)
 
 with app.app_context():
     # Check if admin user already exists
-    admin = Users.query.filter_by(username='mabuya').first()
+    admin = Users.query.filter_by(username='moha').first()
     
     if admin:
-        print(f"✅ Admin user 'mabuya' already exists!")
+        print(f"✅ Admin user 'moha' already exists!")
         print(f"   Email: {admin.email}")
         print(f"   Is Admin: {admin.is_admin}")
     else:
         # Create new admin user
         admin_user = Users(
-            username='mabuya',
-            email='mabuya@smartfarma.com',
+            username='moha',
+            email='moha@smartfarma.com',
             password='admin123',  # Will be hashed automatically
             is_admin=True
         )
@@ -53,9 +53,9 @@ with app.app_context():
         
         print("✅ Admin account created successfully!")
         print("=" * 50)
-        print("Username: mabuya")
+        print("Username: moha")
         print("Password: admin123")
-        print("Email: mabuya@smartfarma.com")
+        print("Email: moha@smartfarma.com")
         print("Role: Admin")
         print("=" * 50)
         print("\n🔐 Login at: http://127.0.0.1:5000/admin/login")
