@@ -11,8 +11,19 @@ from apps.model.models import Prediction
 @login_required
 def index():
     # Additional check: only admins can access dashboard
+    print(f"DEBUG: Index route accessed")
+    print(f"DEBUG: current_user.is_authenticated: {current_user.is_authenticated}")
+    print(f"DEBUG: current_user.id: {current_user.id if current_user.is_authenticated else 'Not authenticated'}")
+    print(f"DEBUG: current_user.username: {current_user.username if current_user.is_authenticated else 'Not authenticated'}")
+    print(f"DEBUG: current_user.is_admin: {current_user.is_admin if current_user.is_authenticated else 'Not authenticated'}")
+    
     if not current_user.is_admin:
+        print(f"DEBUG: User is not admin, redirecting to predictions")
+        print(f"DEBUG: current_user object: {current_user}")
+        print(f"DEBUG: type of current_user: {type(current_user)}")
         return redirect(url_for('data_blueprint.prediction'))
+    
+    print(f"DEBUG: User is admin, loading dashboard")
     total_locations = Location.query.count()
     total_predictions = Prediction.query.count()
     total_soil_records = SoilData.query.count()

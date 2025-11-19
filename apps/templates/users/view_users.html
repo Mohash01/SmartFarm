@@ -1,63 +1,297 @@
 {% extends "layouts/base.html" %}
 
-{% block title %} Users {% endblock %}
+{% block title %} User Management {% endblock %}
 
 <!-- Specific Page CSS goes HERE  -->
 {% block stylesheets %}
-<style>
-  .table {
-    margin-top: 20px;
-  }
-
-  .table th,
-  .table td {
-    vertical-align: middle;
-  }
-</style>
+<meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock stylesheets %}
 
 {% block content %}
+
 <div class="container-fluid py-4">
   <div class="row">
     <div class="col-12">
-      <div class="card my-4">
-        <div class="card-header p-0 position-relative mt-n4 mx-3 z-index-2">
-          <div class="bg-gradient-primary shadow-primary border-radius-lg pt-4 pb-3">
-            <h6 class="text-white text-capitalize ps-3">uSERS table</h6>
-          </div>
+      
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h3 class="mb-0">User Management</h3>
+          <p class="text-sm mb-0">Manage system users and their permissions</p>
         </div>
-        <div class="card-body px-0 pb-2">
+        <a href="{{ url_for('user_blueprint.create_user') }}" class="btn btn-primary">
+          <i class="iconoir-plus me-2"></i>Add New User
+        </a>
+      </div>
+
+      <!-- Search and Filters -->
+      <div class="card mb-4">
+        <div class="card-body py-3">
+          <form method="GET" class="row g-3 align-items-center">
+            <div class="col-md-6">
+              <div class="input-group">
+                <span class="input-group-text">
+                  <i class="iconoir-search"></i>
+                </span>
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Search by username or email..." 
+                       value="{{ search }}"
+                       aria-label="Search users">
+              </div>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-outline-primary w-100">
+                <i class="iconoir-search me-2"></i>Search
+              </button>
+            </div>
+            <div class="col-md-3">
+              <a href="{{ url_for('user_blueprint.users') }}" class="btn btn-outline-secondary w-100">
+                <i class="iconoir-cancel me-2"></i>Clear
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Users Table -->
+      <div class="card">
+        <div class="card-header pb-0">
+          <h6>Users ({{ pagination.total }} total)</h6>
+        </div>
+        <div class="card-body px-0 pt-0 pb-2">
+          {% if users %}
           <div class="table-responsive p-0">
             <table class="table align-items-center mb-0">
               <thead>
                 <tr>
-                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">ID</th>
-                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Username</th>
-                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Email</th>
-                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Status
-                  </th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">User</th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Role</th>
+                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Status</th>
+                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {% for user in users %}
-                <tr>
-                  <td>{{ user.id }}</td>
-                  <td>{{ user.username }}</td>
-                  <td>{{ user.email }}</td>
-                  <td>Active</td>
+                <tr id="user-row-{{ user.id }}">
+                  <td>
+                    <div class="d-flex px-2 py-1">
+                      <div>
+                        <div class="avatar avatar-sm me-3 bg-gradient-{{ 'primary' if user.is_admin else 'secondary' }}">
+                          <i class="iconoir-{{ 'crown' if user.is_admin else 'user' }} text-white"></i>
+                        </div>
+                      </div>
+                      <div class="d-flex flex-column justify-content-center">
+                        <h6 class="mb-0 text-sm">{{ user.username }}</h6>
+                        <p class="text-xs text-secondary mb-0">{{ user.email }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge badge-sm bg-gradient-{{ 'success' if user.is_admin else 'info' }}">
+                      {{ 'Admin' if user.is_admin else 'User' }}
+                    </span>
+                  </td>
+                  <td class="align-middle text-center text-sm">
+                    <span class="badge badge-sm bg-gradient-success">Active</span>
+                  </td>
+                  <td class="align-middle text-center">
+                    <div class="btn-group" role="group">
+                      <!-- Edit Button -->
+                      <a href="{{ url_for('user_blueprint.edit_user', user_id=user.id) }}" 
+                         class="btn btn-sm btn-outline-info" title="Edit User">
+                        <i class="iconoir-edit-pencil"></i>
+                      </a>
+                      
+                      <!-- Toggle Admin Button -->
+                      {% if user.id != current_user.id %}
+                      <button class="btn btn-sm btn-outline-warning" 
+                              onclick="toggleAdmin({{ user.id }}, '{{ user.username }}', {{ user.is_admin|lower }})"
+                              title="Toggle Admin Status">
+                        <i class="iconoir-{{ 'user-crown' if user.is_admin else 'user-plus' }}"></i>
+                      </button>
+                      
+                      <!-- Delete Button -->
+                      <button class="btn btn-sm btn-outline-danger" 
+                              onclick="deleteUser({{ user.id }}, '{{ user.username }}')"
+                              title="Delete User">
+                        <i class="iconoir-trash"></i>
+                      </button>
+                      {% else %}
+                      <small class="text-muted">Current User</small>
+                      {% endif %}
+                    </div>
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>
             </table>
           </div>
+
+          <!-- Pagination -->
+          {% if pagination.pages > 1 %}
+          <div class="d-flex justify-content-between align-items-center mt-4 px-3">
+            <p class="text-sm text-secondary mb-0">
+              Showing {{ pagination.per_page * (pagination.page - 1) + 1 }} to 
+              {{ pagination.per_page * (pagination.page - 1) + users|length }} of {{ pagination.total }} users
+            </p>
+            <nav aria-label="User pagination">
+              <ul class="pagination pagination-sm mb-0">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                  <a class="page-link" href="{{ url_for('user_blueprint.users', page=pagination.prev_num, search=search) }}">
+                    <i class="iconoir-nav-arrow-left"></i>
+                  </a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in pagination.iter_pages() %}
+                  {% if page_num %}
+                    {% if page_num != pagination.page %}
+                    <li class="page-item">
+                      <a class="page-link" href="{{ url_for('user_blueprint.users', page=page_num, search=search) }}">{{ page_num }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                      <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                  {% else %}
+                  <li class="page-item disabled">
+                    <span class="page-link">...</span>
+                  </li>
+                  {% endif %}
+                {% endfor %}
+                
+                {% if pagination.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="{{ url_for('user_blueprint.users', page=pagination.next_num, search=search) }}">
+                    <i class="iconoir-nav-arrow-right"></i>
+                  </a>
+                </li>
+                {% endif %}
+              </ul>
+            </nav>
+          </div>
+          {% endif %}
+
+          {% else %}
+          <div class="text-center py-5">
+            <i class="iconoir-group fa-3x text-secondary opacity-6 mb-3"></i>
+            <h5 class="text-secondary">No users found</h5>
+            <p class="text-sm text-secondary mb-0">
+              {% if search %}
+                No users match your search criteria.
+              {% else %}
+                Start by adding your first user.
+              {% endif %}
+            </p>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
-
-
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete user <strong id="deleteUserName"></strong>?</p>
+        <p class="text-warning mb-0">
+          <i class="iconoir-warning-triangle me-2"></i>
+          This action cannot be undone.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete User</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock content %}
 
 <!-- Specific Page JS goes HERE  -->
-{% block javascripts %}{% endblock javascripts %}
+{% block javascripts %}
+<script>
+function deleteUser(userId, username) {
+    document.getElementById('deleteUserName').textContent = username;
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    deleteModal.show();
+    
+    document.getElementById('confirmDeleteBtn').onclick = function() {
+        fetch(`/admin/users/${userId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the row from table
+                document.getElementById(`user-row-${userId}`).remove();
+                showAlert('success', data.message);
+                deleteModal.hide();
+                // Reload page to update pagination if needed
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showAlert('error', data.message);
+            }
+        })
+        .catch(error => {
+            showAlert('error', 'An error occurred while deleting the user');
+        });
+    };
+}
+
+function toggleAdmin(userId, username, isCurrentlyAdmin) {
+    const action = isCurrentlyAdmin ? 'remove admin privileges from' : 'make admin';
+    if (confirm(`Are you sure you want to ${action} ${username}?`)) {
+        fetch(`/admin/users/${userId}/toggle-admin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('success', data.message);
+                // Reload page to update the UI
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                showAlert('error', data.message);
+            }
+        })
+        .catch(error => {
+            showAlert('error', 'An error occurred while updating the user');
+        });
+    }
+}
+
+function showAlert(type, message) {
+    // Create and show alert
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const iconClass = type === 'success' ? 'iconoir-check-circle' : 'iconoir-warning-circle';
+    const alertHTML = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            <i class="${iconClass} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Insert at top of content
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHTML);
+}
+</script>
+{% endblock javascripts %}

@@ -100,10 +100,33 @@ def admin_login():
         # Check the password and verify user is admin
         if user and verify_pass(password, user.password):
             if user.is_admin:
+                logger.info(f"Admin login attempt: {user.username} (ID: {user.id}), is_admin: {user.is_admin}")
+                
+                # Clear any existing session first
+                session.clear()
+                
+                # Set session configuration
                 session.permanent = True
+                
+                # Login the user
                 login_user(user, remember=True)
+                
+                # Force session save
+                session.modified = True
+                
                 logger.info(f"Admin logged in: {user.username} (ID: {user.id})")
+                logger.info(f"Session after login: {dict(session)}")
+                logger.info(f"current_user.is_authenticated: {current_user.is_authenticated}")
+                logger.info(f"current_user.is_admin: {current_user.is_admin}")
+                logger.info(f"current_user.id: {current_user.id}")
+                
+                # Commit any database changes
                 db.session.commit()
+                
+                # Add a small delay to ensure session is saved
+                import time
+                time.sleep(0.1)
+                
                 return redirect(url_for('home_blueprint.index'))
             else:
                 return render_template('accounts/admin-login.html',

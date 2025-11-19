@@ -1,15 +1,18 @@
 from flask import Flask
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 from importlib import import_module
 
 db = SQLAlchemy()
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 
 def register_extensions(app):
     db.init_app(app)
     login_manager.init_app(app)
+    csrf.init_app(app)
     # Configure login manager to redirect to login page instead of showing 403
     login_manager.login_view = 'authentication_blueprint.login'
     login_manager.login_message = 'Please log in to access this page.'

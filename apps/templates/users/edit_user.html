@@ -1,0 +1,263 @@
+{% extends "layouts/base.html" %}
+
+{% block title %} Edit User {% endblock %}
+
+<!-- Specific Page CSS goes HERE  -->
+{% block stylesheets %}{% endblock stylesheets %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+  <div class="row">
+    <div class="col-md-8 col-lg-6 mx-auto">
+      
+      <!-- Header -->
+      <div class="text-center mb-4">
+        <h3 class="mb-0">Edit User</h3>
+        <p class="text-sm mb-0">Update user information for <strong>{{ user.username }}</strong></p>
+      </div>
+
+      <!-- Form Card -->
+      <div class="card">
+        <div class="card-header pb-0">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+              <a href="{{ url_for('user_blueprint.users') }}" class="btn btn-outline-secondary btn-sm me-3">
+                <i class="iconoir-nav-arrow-left me-2"></i>Back to Users
+              </a>
+              <h6 class="mb-0">User Information</h6>
+            </div>
+            <div class="d-flex align-items-center">
+              <span class="badge badge-sm bg-gradient-{{ 'success' if user.is_admin else 'info' }} me-2">
+                {{ 'Admin' if user.is_admin else 'User' }}
+              </span>
+              <small class="text-muted">ID: {{ user.id }}</small>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="POST" novalidate>
+            {{ form.hidden_tag() }}
+            
+            <!-- Username Field -->
+            <div class="mb-3">
+              {{ form.username.label(class="form-label") }}
+              {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
+              {% if form.username.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.username.errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              <div class="form-text">
+                <i class="iconoir-info-circle me-1"></i>
+                Username must be 3-20 characters, alphanumeric and underscores only
+              </div>
+            </div>
+
+            <!-- Email Field -->
+            <div class="mb-3">
+              {{ form.email.label(class="form-label") }}
+              {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+              {% if form.email.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.email.errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              <div class="form-text">
+                <i class="iconoir-info-circle me-1"></i>
+                A valid email address is required
+              </div>
+            </div>
+
+            <!-- Password Section -->
+            <div class="card mb-3">
+              <div class="card-header pb-0">
+                <h6 class="mb-0">Password Settings</h6>
+                <p class="text-xs text-muted mb-0">Leave blank to keep current password</p>
+              </div>
+              <div class="card-body pt-3">
+                <!-- New Password Field -->
+                <div class="mb-3">
+                  {{ form.password.label(class="form-label") }}
+                  <div class="input-group">
+                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), id="password", placeholder="Enter new password to change") }}
+                    <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('password')">
+                      <i class="iconoir-eye-empty" id="password-icon"></i>
+                    </button>
+                  </div>
+                  {% if form.password.errors %}
+                    <div class="invalid-feedback">
+                      {% for error in form.password.errors %}
+                        <div>{{ error }}</div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">
+                    <i class="iconoir-info-circle me-1"></i>
+                    Password must be at least 6 characters if provided
+                  </div>
+                </div>
+
+                <!-- Confirm Password Field -->
+                <div class="mb-0" id="confirm-password-group" style="display: none;">
+                  {{ form.confirm_password.label(class="form-label") }}
+                  <div class="input-group">
+                    {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else ""), id="confirm_password") }}
+                    <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('confirm_password')">
+                      <i class="iconoir-eye-empty" id="confirm_password-icon"></i>
+                    </button>
+                  </div>
+                  {% if form.confirm_password.errors %}
+                    <div class="invalid-feedback">
+                      {% for error in form.confirm_password.errors %}
+                        <div>{{ error }}</div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">
+                    <i class="iconoir-info-circle me-1"></i>
+                    Must match the new password above
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Admin Status -->
+            {% if user.id != current_user.id %}
+            <div class="mb-4">
+              <div class="card">
+                <div class="card-header pb-0">
+                  <h6 class="mb-0">User Permissions</h6>
+                </div>
+                <div class="card-body pt-3">
+                  <div class="form-check">
+                    {{ form.is_admin(class="form-check-input") }}
+                    {{ form.is_admin.label(class="form-check-label") }}
+                  </div>
+                  <div class="form-text">
+                    <i class="iconoir-warning-triangle text-warning me-1"></i>
+                    Admin users have full access to system management features
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info" role="alert">
+              <i class="iconoir-info-circle me-2"></i>
+              You cannot change your own admin status for security reasons.
+            </div>
+            {% endif %}
+
+            <!-- Submit Buttons -->
+            <div class="d-flex justify-content-between">
+              <a href="{{ url_for('user_blueprint.users') }}" class="btn btn-secondary">
+                <i class="iconoir-cancel me-2"></i>Cancel
+              </a>
+              <button type="submit" class="btn btn-primary">
+                <i class="iconoir-floppy-disk me-2"></i>Update User
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- User Statistics -->
+      <div class="card mt-4">
+        <div class="card-header pb-0">
+          <h6 class="mb-0">User Statistics</h6>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-6">
+              <div class="d-flex flex-column">
+                <span class="text-xs">Account Created</span>
+                <span class="text-sm font-weight-bold">{{ user.created_at.strftime('%B %d, %Y') if user.created_at else 'N/A' }}</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="d-flex flex-column">
+                <span class="text-xs">Total Predictions</span>
+                <span class="text-sm font-weight-bold">{{ user.predictions|length if user.predictions else 0 }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}
+
+<!-- Specific Page JS goes HERE  -->
+{% block javascripts %}
+<script>
+function togglePassword(fieldId) {
+    const field = document.getElementById(fieldId);
+    const icon = document.getElementById(fieldId + '-icon');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.remove('iconoir-eye-empty');
+        icon.classList.add('iconoir-eye-off');
+    } else {
+        field.type = 'password';
+        icon.classList.remove('iconoir-eye-off');
+        icon.classList.add('iconoir-eye-empty');
+    }
+}
+
+// Show/hide confirm password field based on password input
+document.getElementById('password').addEventListener('input', function() {
+    const password = this.value;
+    const confirmGroup = document.getElementById('confirm-password-group');
+    const confirmField = document.getElementById('confirm_password');
+    
+    if (password.trim()) {
+        confirmGroup.style.display = 'block';
+        confirmField.required = true;
+    } else {
+        confirmGroup.style.display = 'none';
+        confirmField.required = false;
+        confirmField.value = '';
+        confirmField.classList.remove('is-invalid', 'is-valid');
+    }
+    
+    // Validate confirm password if it has value
+    if (confirmField.value) {
+        validatePasswordConfirmation();
+    }
+});
+
+// Real-time password confirmation validation
+document.getElementById('confirm_password').addEventListener('input', validatePasswordConfirmation);
+
+function validatePasswordConfirmation() {
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm_password').value;
+    const confirmField = document.getElementById('confirm_password');
+    
+    if (confirmPassword && password !== confirmPassword) {
+        confirmField.classList.add('is-invalid');
+        confirmField.classList.remove('is-valid');
+    } else if (confirmPassword && password === confirmPassword) {
+        confirmField.classList.remove('is-invalid');
+        confirmField.classList.add('is-valid');
+    } else {
+        confirmField.classList.remove('is-invalid', 'is-valid');
+    }
+}
+
+// Initialize confirm password field visibility
+document.addEventListener('DOMContentLoaded', function() {
+    const passwordField = document.getElementById('password');
+    if (passwordField.value.trim()) {
+        document.getElementById('confirm-password-group').style.display = 'block';
+    }
+});
+</script>
+{% endblock javascripts %}
