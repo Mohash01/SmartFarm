@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import current_user, login_required
+from flask_wtf import CSRFProtect
 from apps.data.util import get_lat_lon, fetch_soil_data, get_model_input_features, fetch_weather_data, standardize_model_inputs, print_standardization_summary, get_gemini_recommendation, test_gemini_connection
 from apps.data.models import SoilData, WeatherData
 from apps.crop.models import Location
@@ -19,6 +20,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 blueprint = Blueprint('data_blueprint', __name__, url_prefix='/data')
+
+# Import CSRF after blueprint creation
+from apps import csrf
 
 # Calculate ROOT_DIR as the project root
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -435,8 +439,44 @@ def model_input():
         'original_features': features
     }), 200
 
-@blueprint.route('/predict', methods=['POST'])
+@blueprint.route('/predict', methods=['GET', 'POST'])
+@csrf.exempt
 def predict():
+    if request.method == 'GET':
+        return jsonify({
+            'message': 'Crop Prediction API Endpoint',
+            'method': 'POST',
+            'content_type': 'application/json',
+            'required_fields': {
+                'features': {
+                    'n': 'Nitrogen (0-200 ppm)',
+                    'p': 'Phosphorous (0-150 ppm)', 
+                    'k': 'Potassium (0-200 ppm)',
+                    'ph': 'Soil pH (0-14)',
+                    'temperature': 'Temperature (-10 to 50°C)',
+                    'humidity': 'Humidity (0-100%)',
+                    'rainfall': 'Rainfall (0-1000 mm)'
+                },
+                'location_id': 'Location ID (integer)',
+                'location': 'Location name (string)',
+                'desired_crop': 'Desired crop name (optional, string)'
+            },
+            'example_request': {
+                'features': {
+                    'n': 90,
+                    'p': 42,
+                    'k': 43,
+                    'ph': 6.5,
+                    'temperature': 25,
+                    'humidity': 80,
+                    'rainfall': 200
+                },
+                'location_id': 1,
+                'location': 'Sample Location',
+                'desired_crop': 'wheat'
+            }
+        }), 200
+
     if not model or not label_encoder:
         return jsonify({'error': 'Model or label encoder not loaded'}), 500
 

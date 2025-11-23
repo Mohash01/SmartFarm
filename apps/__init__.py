@@ -13,6 +13,7 @@ def register_extensions(app):
     db.init_app(app)
     login_manager.init_app(app)
     csrf.init_app(app)
+    
     # Configure login manager to redirect to login page instead of showing 403
     login_manager.login_view = 'authentication_blueprint.login'
     login_manager.login_message = 'Please log in to access this page.'
@@ -24,6 +25,16 @@ def register_blueprints(app):
     for module_name in ('authentication', 'home', 'crop', 'data', 'model','user'):
         module = import_module(f'apps.{module_name}.routes')
         app.register_blueprint(module.blueprint)
+    
+    # Exempt the predict endpoint from CSRF protection
+    try:
+        csrf.exempt('data_blueprint.predict')
+        print("CSRF exemption for data_blueprint.predict applied successfully")
+    except Exception as e:
+        print(f"Failed to apply CSRF exemption: {e}")
+        # Alternative method to exempt the view
+        with app.app_context():
+            csrf.exempt(app.view_functions.get('data_blueprint.predict'))
 
 
 def configure_database(app):

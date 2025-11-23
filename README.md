@@ -171,6 +171,4 @@ If you have questions or need help integrating the product please [contact us](h
 
 <br />
 
----
-[Material Dashboard Flask](https://www.creative-tim.com/product/material-dashboard-flask) - Provided by [Creative Tim](https://www.creative-tim.com/) and [AppSeed](https://appseed.us)
-# smart-farma
+

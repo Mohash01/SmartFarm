@@ -14,16 +14,9 @@ class Config(object):
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # PostgreSQL DB config (required)
-    DB_ENGINE   = os.getenv('DB_CONNECTION', 'postgresql')
-    DB_USERNAME = os.getenv('DB_USERNAME', '')
-    DB_PASS     = os.getenv('DB_PASSWORD', '')
-    DB_HOST     = os.getenv('DB_HOST', '')
-    DB_PORT     = os.getenv('DB_PORT', '')
-    DB_NAME     = os.getenv('DB_DATABASE', '')
 
     try:
-        SQLALCHEMY_DATABASE_URI = f'{DB_ENGINE}://{DB_USERNAME}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}'
+        SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:@127.0.0.1:3306/smartfarma_db"
     except Exception as e:
         print('> Error: DBMS Exception: ' + str(e))
         raise e 

@@ -6,6 +6,10 @@ from typing import Dict, Optional
 import json
 import openai
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+
+load_dotenv()  # <-- ensure environment variables are loaded
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +43,7 @@ def get_lat_lon(address: str, retries: int = 3, delay: int = 2, timeout: int = 1
         'limit': 1
     }
     headers = {
-        'User-Agent': 'SmartFarmApp/1.0 (mainamanasseh02@gmail.com)'
+        'User-Agent': 'SmartFarmApp/1.0 (muhammadhamdun19@gmail.com)'
     }
 
     for attempt in range(1, retries + 1):
@@ -115,139 +119,89 @@ def save_cache(cache: Dict) -> None:
     with open(CACHE_FILE, 'w') as f:
         json.dump(cache, f)
 
-def get_isda_token() -> Optional[str]:
+def get_isda_token() -> str | None:
     """
-    Authenticate with iSDAsoil API and return a JWT token.
+    Authenticate with iSDAsoil production API and return a JWT token.
     """
-    url = f"{ISDA_API_BASE_URL}/login"
+    url = "https://api.isda-africa.com/login"
     data = {
+        "grant_type": "password",
         "username": ISDA_API_USERNAME,
-        "password": ISDA_API_PASSWORD
+        "password": ISDA_API_PASSWORD,
+        "scope": "",
+        "client_id": "string",
+        "client_secret": "string"
     }
     headers = {
         "accept": "application/json",
         "Content-Type": "application/x-www-form-urlencoded"
     }
+
     try:
         response = requests.post(url, data=data, headers=headers, timeout=10)
         response.raise_for_status()
-        token = response.json().get("token")
+        token = response.json().get("access_token")
         if token:
-            logger.info("Successfully obtained iSDAsoil API token")
+            logger.info("✅ Successfully obtained iSDAsoil API token")
             return token
         else:
-            logger.error("Failed to obtain token from iSDAsoil API response")
+            logger.error("❌ No token in response")
             return None
     except Exception as e:
-        logger.error(f"Error obtaining iSDAsoil API token: {str(e)}")
+        logger.error(f"❌ Error obtaining iSDAsoil API token: {str(e)}")
         return None
 
-def fetch_soil_data(lat: float, lon: float, retries: int = 3, delay: int = 2, timeout: int = 15) -> Dict[str, float]:
-    """
-    Fetch soil data from iSDAsoil API for the given latitude and longitude.
-    Returns a dictionary with N, P, K, pH for the 0-20cm depth layer in mg/kg (ppm).
-    Fetches the following soil properties:
-    - nitrogen_total
-    - phosphorous_extractable
-    - potassium_extractable
-    - ph
-    """
-    cache = load_cache()
-    coord_key = f"{lat:.6f},{lon:.6f}"
-    if coord_key in cache:
-        logger.info(f"Using cached soil data for lat={lat}, lon={lon}")
-        # Ensure uppercase keys in cached data
-        cached_data = cache[coord_key]
-        return {
-            'N': cached_data.get('N', cached_data.get('n', 100.0)),
-            'P': cached_data.get('P', cached_data.get('p', 30.0)),
-            'K': cached_data.get('K', cached_data.get('k', 300.0)),
-            'ph': cached_data.get('ph', 6.5)
-        }
-
-    token = get_isda_token()
-    if not token:
-        logger.error("Failed to obtain iSDAsoil API token, using fallback soil data")
-        soil = {
-            "N": 100.0,  # mg/kg
-            "P": 30.0,   # mg/kg
-            "K": 300.0,  # mg/kg
-            "ph": 6.5    # Neutral pH
-        }
-        cache[coord_key] = soil
-        save_cache(cache)
-        return soil
-
-    url = f"{ISDA_API_BASE_URL}/soilproperty"
+    
+def fetch_soil_data(lat: float, lon: float, retries: int = 3, delay: int = 2) -> dict:
+    url = "https://api.isda-africa.com/isdasoil/v2/soilproperty"
     params = {
         "lon": lon,
         "lat": lat,
-        "depth": "0-20",
-        "property": "nitrogen_total,phosphorous_extractable,potassium_extractable,ph"
+        "depth": "0-20"
+        # omit property filter, fetch all
     }
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "accept": "application/json"
-    }
-
-    soil = {'N': None, 'P': None, 'K': None, 'ph': None}
 
     for attempt in range(1, retries + 1):
         try:
-            response = requests.get(url, params=params, headers=headers, timeout=timeout)
+            token = get_isda_token()
+            if not token:
+                raise Exception("No token available")
+
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "accept": "application/json"
+            }
+            response = requests.get(url, params=params, headers=headers, timeout=15)
             response.raise_for_status()
             data = response.json()
-            properties = data.get("properties", {})
-            if not properties:
-                logger.warning(f"iSDAsoil API returned empty properties for lat: {lat}, lon: {lon}")
-                continue
+            props = data.get("property", {})
 
-            # Map iSDAsoil properties to our soil keys
-            property_mapping = {
-                "nitrogen_total": "N",
-                "phosphorous_extractable": "P",
-                "potassium_extractable": "K",
-                "ph": "ph"
+            # Safely extract values
+            def extract(prop_name, default):
+                try:
+                    return float(props[prop_name][0]["value"]["value"])
+                except Exception:
+                    return default
+
+            soil = {
+                "N": extract("nitrogen_total", 100.0),
+                "P": extract("phosphorous_extractable", 30.0),
+                "K": extract("potassium_extractable", 300.0),
+                "ph": extract("ph", 6.5)
             }
-            for prop, value in properties.items():
-                if prop in property_mapping:
-                    soil[property_mapping[prop]] = float(value)
-
-            if soil["N"] is None:
-                soil["N"] = 100.0  # mg/kg
-                logger.warning(f"Using fallback for N: {soil['N']} mg/kg")
-            if soil["P"] is None:
-                soil["P"] = 30.0  # mg/kg
-                logger.warning(f"Using fallback for P: {soil['P']} mg/kg")
-            if soil["K"] is None:
-                soil["K"] = 300.0  # mg/kg
-                logger.warning(f"Using fallback for K: {soil['K']} mg/kg")
-            if soil["ph"] is None:
-                soil["ph"] = 6.5  # Neutral pH
-                logger.warning(f"Using fallback for pH: {soil['ph']}")
-
-            cache[coord_key] = soil
-            save_cache(cache)
-            logger.info(f"Fetched soil data for lat={lat}, lon={lon}: {soil}")
+            logger.info(f"✅ Soil data fetched (attempt {attempt}): {soil}")
             return soil
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"iSDAsoil API error (attempt {attempt}/{retries}): {str(e)}")
+        except Exception as e:
+            logger.error(f"⚠️ API error (attempt {attempt}/{retries}): {str(e)}")
             if attempt < retries:
-                logger.info(f"Retrying in {delay} seconds...")
                 time.sleep(delay)
 
-    logger.error(f"Failed to fetch soil data after {retries} attempts for lat: {lat}, lon: {lon}")
-    soil = {
-        "N": 100.0,  # mg/kg
-        "P": 30.0,   # mg/kg
-        "K": 300.0,  # mg/kg
-        "ph": 6.5    # Neutral pH
-    }
-    cache[coord_key] = soil
-    save_cache(cache)
-    logger.info(f"Using fallback soil data for lat={lat}, lon={lon}: {soil}")
-    return soil
+    logger.warning("⚠️ Failed after retries, using fallback soil data")
+    return {"N": 100.0, "P": 30.0, "K": 300.0, "ph": 6.5}
+
+
+
 
 def get_model_input_features(location_name: str) -> Optional[Dict[str, float]]:
     """
