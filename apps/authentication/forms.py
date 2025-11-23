@@ -1,6 +1,6 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField
-from wtforms.validators import Email, DataRequired
+from wtforms.validators import Email, DataRequired, EqualTo, Length
 
 # login and registration
 
@@ -24,3 +24,18 @@ class CreateAccountForm(FlaskForm):
     password = PasswordField('Password',
                              id='pwd_create',
                              validators=[DataRequired()])
+
+
+class ForgotPasswordForm(FlaskForm):
+    email = StringField('Email',
+                       id='email_forgot',
+                       validators=[DataRequired(), Email()])
+
+
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField('New Password',
+                             id='pwd_reset',
+                             validators=[DataRequired(), Length(min=6)])
+    password_confirm = PasswordField('Confirm Password',
+                                   id='pwd_confirm',
+                                   validators=[DataRequired(), EqualTo('password')])

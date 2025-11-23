@@ -1,4 +1,6 @@
 from flask_login import UserMixin
+from datetime import datetime, timedelta
+import secrets
 
 from apps import db, login_manager
 
@@ -13,6 +15,10 @@ class Users(db.Model, UserMixin):
     email = db.Column(db.String(64), unique=True)
     password = db.Column(db.LargeBinary)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Password reset fields
+    reset_token = db.Column(db.String(100), unique=True, nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
 
     def __init__(self, **kwargs):
         for property, value in kwargs.items():
@@ -27,6 +33,26 @@ class Users(db.Model, UserMixin):
                 value = hash_pass(value)  # we need bytes here (not plain str)
 
             setattr(self, property, value)
+
+    def generate_reset_token(self):
+        """Generate a password reset token that expires in 1 hour"""
+        self.reset_token = secrets.token_urlsafe(32)
+        self.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+        db.session.commit()
+        return self.reset_token
+
+    def verify_reset_token(self, token):
+        """Verify if the reset token is valid and not expired"""
+        return (self.reset_token == token and 
+                self.reset_token_expires and 
+                datetime.utcnow() < self.reset_token_expires)
+
+    def reset_password(self, new_password):
+        """Reset the password and clear reset token"""
+        self.password = hash_pass(new_password)
+        self.reset_token = None
+        self.reset_token_expires = None
+        db.session.commit()
 
     def __repr__(self):
         return str(self.username)

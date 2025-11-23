@@ -47,6 +47,10 @@
               <div class="text-center">
                 <button type="submit" name="login" class="btn bg-gradient-success w-100 my-4 mb-2">Sign in</button>
               </div>
+              <p class="mt-2 text-sm text-center">
+                <a href="{{ url_for('authentication_blueprint.forgot_password') }}"
+                  class="text-primary font-weight-bold">Forgot password?</a>
+              </p>
               <p class="mt-4 text-sm text-center">
                 Don't have an account?
                 <a href="{{ url_for('authentication_blueprint.register') }}"

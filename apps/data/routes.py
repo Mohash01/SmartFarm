@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, send_file, make_response
 from flask_login import current_user, login_required
 from flask_wtf import CSRFProtect
 from apps.data.util import get_lat_lon, fetch_soil_data, get_model_input_features, fetch_weather_data, standardize_model_inputs, print_standardization_summary, get_gemini_recommendation, test_gemini_connection
@@ -14,6 +14,12 @@ import numpy as np
 import pandas as pd
 import logging
 from datetime import datetime
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from io import BytesIO
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -98,6 +104,169 @@ def get_user_predictions():
     except Exception as e:
         logger.error(f"Error fetching user predictions: {str(e)}")
         return jsonify({'error': 'Failed to fetch predictions'}), 500
+
+
+@blueprint.route('/download-prediction-report/<int:prediction_id>', methods=['GET'])
+@login_required
+def download_prediction_report(prediction_id):
+    """Generate and download PDF report for a specific prediction"""
+    try:
+        # Get the prediction with location info
+        prediction_data = db.session.query(Prediction, Location).join(
+            Location, Prediction.location_id == Location.id
+        ).filter(
+            Prediction.id == prediction_id,
+            Prediction.user_id == current_user.id
+        ).first()
+        
+        if not prediction_data:
+            return jsonify({'error': 'Prediction not found or access denied'}), 404
+            
+        prediction, location = prediction_data
+        
+        # Create PDF in memory
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*inch)
+        
+        # Define styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=20,
+            spaceAfter=30,
+            textColor=colors.HexColor('#2563eb'),
+            alignment=1  # Center alignment
+        )
+        
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=12,
+            textColor=colors.HexColor('#059669'),
+            spaceBefore=20
+        )
+        
+        # Content to add to PDF
+        content = []
+        
+        # Title
+        content.append(Paragraph("Smart Farma - Crop Prediction Report", title_style))
+        content.append(Spacer(1, 20))
+        
+        # Prediction Summary
+        content.append(Paragraph("Prediction Summary", heading_style))
+        summary_data = [
+            ['Field', 'Value'],
+            ['Location', location.name],
+            ['Recommended Crop', prediction.crop_recommended.title()],
+            ['Prediction Date', prediction.timestamp.strftime('%Y-%m-%d %H:%M')],
+            ['Confidence Score', f"{(prediction.confidence_score * 100):.1f}%"],
+            ['Suitability', 'Suitable' if prediction.is_suitable else 'Not Suitable'],
+        ]
+        
+        summary_table = Table(summary_data, colWidths=[2*inch, 3*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#374151')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1d5db')),
+        ]))
+        content.append(summary_table)
+        content.append(Spacer(1, 20))
+        
+        # Soil Nutrients
+        content.append(Paragraph("Soil Nutrients Analysis", heading_style))
+        soil_data = [
+            ['Nutrient', 'Value', 'Unit'],
+            ['Nitrogen (N)', f"{prediction.nitrogen:.2f}", 'ppm'],
+            ['Phosphorus (P)', f"{prediction.phosphorus:.2f}", 'ppm'],
+            ['Potassium (K)', f"{prediction.potassium:.2f}", 'ppm'],
+            ['pH Level', f"{prediction.ph:.2f}", ''],
+        ]
+        
+        soil_table = Table(soil_data, colWidths=[2*inch, 1.5*inch, 1*inch])
+        soil_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#374151')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1d5db')),
+        ]))
+        content.append(soil_table)
+        content.append(Spacer(1, 20))
+        
+        # Weather Conditions
+        content.append(Paragraph("Weather Conditions", heading_style))
+        weather_data = [
+            ['Parameter', 'Value', 'Unit'],
+            ['Temperature', f"{prediction.temperature:.1f}", '°C'],
+            ['Humidity', f"{prediction.humidity:.1f}", '%'],
+            ['Rainfall', f"{prediction.rainfall:.1f}", 'mm'],
+        ]
+        
+        weather_table = Table(weather_data, colWidths=[2*inch, 1.5*inch, 1*inch])
+        weather_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#374151')),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#d1d5db')),
+        ]))
+        content.append(weather_table)
+        content.append(Spacer(1, 20))
+        
+        # Footer
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.HexColor('#6b7280'),
+            alignment=1  # Center alignment
+        )
+        content.append(Spacer(1, 40))
+        content.append(Paragraph(
+            f"Report generated by Smart Farma on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            footer_style
+        ))
+        
+        # Build PDF
+        doc.build(content)
+        
+        # Prepare file for download
+        buffer.seek(0)
+        
+        # Create response
+        response = make_response(buffer.getvalue())
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename=prediction_report_{prediction_id}_{datetime.now().strftime("%Y%m%d")}.pdf'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error generating PDF report: {str(e)}")
+        return jsonify({'error': 'Failed to generate PDF report'}), 500
+
 
 @blueprint.route('/location')
 def locations():

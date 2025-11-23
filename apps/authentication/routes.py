@@ -8,7 +8,7 @@ import logging
 
 from apps import db, login_manager
 from apps.authentication import blueprint
-from apps.authentication.forms import LoginForm, CreateAccountForm
+from apps.authentication.forms import LoginForm, CreateAccountForm, ForgotPasswordForm, ResetPasswordForm
 from apps.authentication.models import Users
 
 from apps.authentication.util import verify_pass
@@ -212,3 +212,62 @@ def not_found_error(error):
 @blueprint.errorhandler(500)
 def internal_error(error):
     return render_template('home/page-500.html'), 500
+
+
+@blueprint.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    forgot_form = ForgotPasswordForm(request.form)
+    
+    if 'forgot_password' in request.form:
+        email = request.form['email']
+        
+        # Find user by email
+        user = Users.query.filter_by(email=email).first()
+        
+        if user:
+            # Generate reset token
+            token = user.generate_reset_token()
+            
+            # In a production environment, you would send an email with the reset link
+            # For demo purposes, we'll just show the token (remove this in production)
+            reset_url = url_for('authentication_blueprint.reset_password', token=token, _external=True)
+            
+            return render_template('accounts/forgot_password.html',
+                                   msg=f'Password reset link: {reset_url}',
+                                   success=True,
+                                   form=forgot_form)
+        else:
+            return render_template('accounts/forgot_password.html',
+                                   msg='If an account with that email exists, a password reset link has been sent.',
+                                   success=True,
+                                   form=forgot_form)
+    
+    return render_template('accounts/forgot_password.html', form=forgot_form)
+
+
+@blueprint.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    # Find user with this token
+    user = Users.query.filter_by(reset_token=token).first()
+    
+    if not user or not user.verify_reset_token(token):
+        return render_template('accounts/reset_password.html',
+                               msg='Invalid or expired reset token',
+                               token_valid=False)
+    
+    reset_form = ResetPasswordForm(request.form)
+    
+    if 'reset_password' in request.form:
+        new_password = request.form['password']
+        
+        # Reset the password
+        user.reset_password(new_password)
+        
+        return render_template('accounts/reset_password.html',
+                               msg='Password has been reset successfully. You can now login with your new password.',
+                               success=True,
+                               token_valid=True)
+    
+    return render_template('accounts/reset_password.html', 
+                           form=reset_form, 
+                           token_valid=True)

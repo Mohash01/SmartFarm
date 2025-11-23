@@ -733,6 +733,33 @@
             <div class="modal-body" id="modalBody">
                 <!-- Content will be injected here -->
             </div>
+            <div class="modal-footer" style="padding: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+                <button onclick="closeModal()" style="
+                    padding: 0.5rem 1rem; 
+                    background-color: #6b7280; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 0.375rem; 
+                    cursor: pointer;
+                    font-size: 0.875rem;
+                    transition: background-color 0.2s;
+                " onmouseover="this.style.backgroundColor='#4b5563'" onmouseout="this.style.backgroundColor='#6b7280'">
+                    <i class="fas fa-times"></i> Close
+                </button>
+                <button id="downloadBtn" onclick="downloadPredictionReport()" style="
+                    padding: 0.5rem 1.5rem; 
+                    background-color: #059669; 
+                    color: white; 
+                    border: none; 
+                    border-radius: 0.375rem; 
+                    cursor: pointer;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    transition: background-color 0.2s;
+                " onmouseover="this.style.backgroundColor='#047857'" onmouseout="this.style.backgroundColor='#059669'">
+                    <i class="fas fa-download"></i> Download Report
+                </button>
+            </div>
         </div>
     </div>
 
@@ -748,6 +775,7 @@
         const sidebarContent = document.getElementById('sidebarContent');
         let isProcessing = false;
         let sidebarVisible = true;
+        let currentPredictionId = null; // Store current prediction ID for download
 
         // Load user's prediction history
         async function loadPredictionHistory() {
@@ -800,6 +828,9 @@
 
         async function loadPredictionDetails(predictionId) {
             try {
+                // Store current prediction ID for download
+                currentPredictionId = predictionId;
+                
                 // Find the prediction from the cached list
                 const response = await fetch('/data/user/predictions', {
                     credentials: 'same-origin'
@@ -930,7 +961,24 @@
         function closeModal(event) {
             if (!event || event.target.id === 'predictionModal') {
                 document.getElementById('predictionModal').classList.remove('active');
+                currentPredictionId = null; // Clear stored prediction ID
             }
+        }
+
+        function downloadPredictionReport() {
+            if (!currentPredictionId) {
+                alert('No prediction selected for download');
+                return;
+            }
+            
+            // Create a temporary anchor element to trigger download
+            const downloadUrl = `/data/download-prediction-report/${currentPredictionId}`;
+            const tempLink = document.createElement('a');
+            tempLink.href = downloadUrl;
+            tempLink.download = `prediction_report_${currentPredictionId}.pdf`;
+            document.body.appendChild(tempLink);
+            tempLink.click();
+            document.body.removeChild(tempLink);
         }
 
         function toggleSidebar() {
