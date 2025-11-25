@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Smart Farma - AI Crop Assistant</title>
+    <title>Smart Farma - AI Crop Recommendation</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/marked.min.js"></script>
@@ -405,6 +405,79 @@
             color: #1f2937;
         }
 
+        /* Enhanced styling for AI recommendations */
+        .message-content h1, .message-content h2 {
+            color: #059669;
+            font-weight: 700;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            border-bottom: 2px solid #d1fae5;
+            padding-bottom: 0.5rem;
+        }
+
+        .message-content h1 {
+            font-size: 1.5rem;
+        }
+
+        .message-content h2 {
+            font-size: 1.25rem;
+        }
+
+        .message-content h3 {
+            color: #10b981;
+            font-weight: 600;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-content ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .message-content ul li {
+            padding-left: 1.5rem;
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+
+        .message-content ul li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+
+        .message-content ol {
+            counter-reset: item;
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .message-content ol li {
+            counter-increment: item;
+            padding-left: 2rem;
+            position: relative;
+            margin-bottom: 0.75rem;
+        }
+
+        .message-content ol li:before {
+            content: counter(item);
+            position: absolute;
+            left: 0;
+            background: #10b981;
+            color: white;
+            width: 1.5rem;
+            height: 1.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.875rem;
+        }
+
         .crop-recommendation {
             display: inline-flex;
             align-items: center;
@@ -657,31 +730,31 @@
                     <i class="fas fa-seedling"></i>
                 </div>
                 <h1 class="welcome-title">Welcome to Smart Farma</h1>
-                <p class="welcome-subtitle">Your AI-powered crop recommendation assistant</p>
+                <p class="welcome-subtitle">Select a crop and get AI-powered growing tips, harvest advice, and suitability analysis</p>
                 
                 <div class="example-prompts">
-                    <div class="example-prompt" onclick="useExample('What crops can I grow in Nairobi, Kenya?')">
+                    <div class="example-prompt" onclick="useExampleCrop('maize', 'Nairobi, Kenya')">
                         <div class="example-prompt-title">
-                            <i class="fas fa-map-marker-alt"></i>
-                            Location-based advice
+                            <i class="fas fa-seedling"></i>
+                            Maize in Nairobi
                         </div>
-                        <div class="example-prompt-text">What crops can I grow in Nairobi, Kenya?</div>
+                        <div class="example-prompt-text">Get growing tips for Maize in Nairobi</div>
                     </div>
                     
-                    <div class="example-prompt" onclick="useExample('Is maize suitable for Kitale region?')">
+                    <div class="example-prompt" onclick="useExampleCrop('coffee', 'Kiambu')">
                         <div class="example-prompt-title">
-                            <i class="fas fa-check-circle"></i>
-                            Crop suitability
+                            <i class="fas fa-coffee"></i>
+                            Coffee cultivation
                         </div>
-                        <div class="example-prompt-text">Is maize suitable for Kitale region?</div>
+                        <div class="example-prompt-text">Learn about Coffee in Kiambu region</div>
                     </div>
                     
-                    <div class="example-prompt" onclick="useExample('Best crops for Trans-Nzoia County')">
+                    <div class="example-prompt" onclick="useExampleCrop('rice', 'Mwea')">
                         <div class="example-prompt-title">
-                            <i class="fas fa-star"></i>
-                            Best recommendations
+                            <i class="fas fa-leaf"></i>
+                            Rice farming
                         </div>
-                        <div class="example-prompt-text">Best crops for Trans-Nzoia County</div>
+                        <div class="example-prompt-text">Rice growing tips for Mwea</div>
                     </div>
                 </div>
             </div>
@@ -692,19 +765,71 @@
             <div class="input-container">
                 <form class="input-form" id="chatForm">
                     <div style="flex: 1; display: flex; flex-direction: column; gap: 0.5rem;">
+                        <select 
+                            id="cropSelect" 
+                            class="input-field" 
+                            required
+                            style="border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem; cursor: pointer;"
+                        >
+                            <option value="">🌾 Select a crop *</option>
+                            <option value="apple">🍎 Apple</option>
+                            <option value="avocado">🥑 Avocado</option>
+                            <option value="banana">🍌 Banana</option>
+                            <option value="barley">🌾 Barley</option>
+                            <option value="beans">🫘 Beans</option>
+                            <option value="blackgram">⬛ Blackgram</option>
+                            <option value="cabbage">🥬 Cabbage</option>
+                            <option value="cassava">🍠 Cassava</option>
+                            <option value="chickpea">🫘 Chickpea</option>
+                            <option value="coconut">🥥 Coconut</option>
+                            <option value="coffee">☕ Coffee</option>
+                            <option value="corn">🌽 Corn</option>
+                            <option value="cotton">🌱 Cotton</option>
+                            <option value="cowpeas">🫘 Cowpeas</option>
+                            <option value="grapes">🍇 Grapes</option>
+                            <option value="groundnut">🥜 Groundnut</option>
+                            <option value="guava">🍈 Guava</option>
+                            <option value="jute">🌿 Jute</option>
+                            <option value="kidneybeans">🫘 Kidneybeans</option>
+                            <option value="lentil">🫘 Lentil</option>
+                            <option value="maize">🌽 Maize</option>
+                            <option value="mango">🥭 Mango</option>
+                            <option value="millet">🌾 Millet</option>
+                            <option value="mungbean">🫘 Mungbean</option>
+                            <option value="muskmelon">🍈 Muskmelon</option>
+                            <option value="onion">🧅 Onion</option>
+                            <option value="onions">🧅 Onions</option>
+                            <option value="orange">🍊 Orange</option>
+                            <option value="papaya">🍈 Papaya</option>
+                            <option value="passion fruit">💜 Passion Fruit</option>
+                            <option value="peas">🫛 Peas</option>
+                            <option value="pigeon pea">🫘 Pigeon Pea</option>
+                            <option value="pigeonpeas">🫘 Pigeonpeas</option>
+                            <option value="pineapple">🍍 Pineapple</option>
+                            <option value="pomegranate">🍎 Pomegranate</option>
+                            <option value="potatoes">🥔 Potatoes</option>
+                            <option value="pyrethrum">🌸 Pyrethrum</option>
+                            <option value="rice">🍚 Rice</option>
+                            <option value="sisal">🌿 Sisal</option>
+                            <option value="sorghum">🌾 Sorghum</option>
+                            <option value="soybean">🫘 Soybean</option>
+                            <option value="spinach">🥬 Spinach</option>
+                            <option value="strawberry">🍓 Strawberry</option>
+                            <option value="sugarcane">🎋 Sugarcane</option>
+                            <option value="sunflower">🌻 Sunflower</option>
+                            <option value="sweet potato">🍠 Sweet Potato</option>
+                            <option value="sweet potatoes">🍠 Sweet Potatoes</option>
+                            <option value="tea">🍵 Tea</option>
+                            <option value="tomato">🍅 Tomato</option>
+                            <option value="tomatoes">🍅 Tomatoes</option>
+                            <option value="watermelon">🍉 Watermelon</option>
+                            <option value="wheat">🌾 Wheat</option>
+                        </select>
                         <input 
                             type="text" 
                             id="locationInput" 
                             class="input-field" 
-                            placeholder="📍 Location (e.g., Nairobi, Kitale, Mombasa, Trans-Nzoia)..."
-                            required
-                            style="border-bottom: 1px solid #e5e7eb; padding-bottom: 0.5rem;"
-                        >
-                        <input 
-                            type="text" 
-                            id="cropInput" 
-                            class="input-field" 
-                            placeholder="🌾 Optional: Specific crop to check (e.g., maize, rice, coffee, banana)..."
+                            placeholder="📍 Optional: Enter your location (e.g., Nairobi, Kitale, Mombasa)..."
                             style="font-size: 0.875rem; color: #6b7280;"
                         >
                     </div>
@@ -768,7 +893,7 @@
         const welcomeScreen = document.getElementById('welcomeScreen');
         const chatForm = document.getElementById('chatForm');
         const locationInput = document.getElementById('locationInput');
-        const cropInput = document.getElementById('cropInput');
+        const cropSelect = document.getElementById('cropSelect');
         const sendBtn = document.getElementById('sendBtn');
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
@@ -990,10 +1115,10 @@
         // Load prediction history on page load
         loadPredictionHistory();
 
-        function useExample(text) {
-            locationInput.value = text;
-            cropInput.value = '';
-            locationInput.focus();
+        function useExampleCrop(crop, location) {
+            cropSelect.value = crop;
+            locationInput.value = location;
+            cropSelect.focus();
         }
 
         function addMessage(content, type) {
@@ -1045,20 +1170,20 @@
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            if (isProcessing || !locationInput.value.trim()) return;
+            if (isProcessing || !cropSelect.value.trim()) return;
             
-            const location = locationInput.value.trim();
-            const desiredCrop = cropInput.value.trim();
+            const selectedCrop = cropSelect.value.trim();
+            const location = locationInput.value.trim() || 'Any location';
             isProcessing = true;
             sendBtn.disabled = true;
             
             // Add user message
-            const userMessage = desiredCrop ? 
-                `📍 <strong>${location}</strong><br>🌾 Check suitability: ${desiredCrop}` : 
-                `📍 ${location}`;
+            const userMessage = location && location !== 'Any location' ? 
+                `🌾 <strong>${selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}</strong><br>📍 Location: ${location}` : 
+                `🌾 <strong>${selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}</strong>`;
             addMessage(userMessage, 'user');
+            cropSelect.value = '';
             locationInput.value = '';
-            cropInput.value = '';
             
             // Add loading indicator
             addLoadingMessage();
@@ -1082,9 +1207,9 @@
                 // Step 2: Send features to prediction endpoint
                 const payload = {
                     features: modelInputData.features,
-                    location: location,
+                    location: location !== 'Any location' ? location : '',
                     location_id: modelInputData.location_id,
-                    desired_crop: desiredCrop || null
+                    desired_crop: selectedCrop || null
                 };
                 
                 // Get CSRF token
@@ -1164,9 +1289,27 @@
                     // AI recommendation (only show if available and not an error)
                     if (data.openai_recommendation && !data.openai_recommendation.includes('Error')) {
                         responseContent += `
-                            <p><strong>💡 AI Insights:</strong></p>
-                            <div style="background: #f0f9ff; padding: 1rem; border-radius: 0.5rem; margin-top: 0.5rem;">
-                                ${marked.parse(data.openai_recommendation)}
+                            <div style="margin-top: 1.5rem; border-top: 2px solid #10b981; padding-top: 1rem;">
+                                <h3 style="color: #10b981; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-lightbulb"></i> Expert Growing & Harvesting Guide
+                                </h3>
+                                <div style="background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); padding: 1.5rem; border-radius: 1rem; margin-top: 0.75rem; border-left: 4px solid #10b981; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);">
+                                    ${marked.parse(data.openai_recommendation)}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    // Grok actionable insights (display if available)
+                    if (data.grok_recommendation && !data.grok_recommendation.includes('Error')) {
+                        responseContent += `
+                            <div style="margin-top: 1.5rem; border-top: 2px solid #059669; padding-top: 1rem;">
+                                <h3 style="color: #059669; font-size: 1.25rem; font-weight: 700; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fas fa-lightbulb"></i> Actionable Farming Insights
+                                </h3>
+                                <div style="background: linear-gradient(135deg, #e6fffa 0%, #f0fdfa 100%); padding: 1.5rem; border-radius: 1rem; margin-top: 0.75rem; border-left: 4px solid #059669; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.1); white-space: pre-wrap;">
+                                    ${marked.parse(data.grok_recommendation)}
+                                </div>
                             </div>
                         `;
                     }

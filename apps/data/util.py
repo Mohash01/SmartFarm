@@ -4,8 +4,7 @@ import time
 import logging
 from typing import Dict, Optional
 import json
-import openai
-import google.generativeai as genai
+from openai import OpenAI
 from dotenv import load_dotenv
 
 
@@ -25,11 +24,11 @@ ISDA_API_USERNAME = os.getenv("ISDA_API_USERNAME", "YOUR_EMAIL")
 ISDA_API_PASSWORD = os.getenv("ISDA_API_PASSWORD", "YOUR_PASSWORD")
 ISDA_API_BASE_URL = "http://test-api.isda-africa.com/isdasoil/v2"
 
-# OpenAI API key
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Grok  API key
+#GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROK_API_KEY = os.getenv("GROK_API_KEY")
 
-# Google Generative AI API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 
 def get_lat_lon(address: str, retries: int = 3, delay: int = 2, timeout: int = 15) -> Optional[Dict[str, any]]:
     """
@@ -241,38 +240,13 @@ def get_model_input_features(location_name: str) -> Optional[Dict[str, float]]:
 
 def standardize_model_inputs(features: Dict[str, float]) -> Dict[str, float]:
     """
-    Standardize model input features to match training data ranges (in ppm/mg/kg).
+    Disable ALL standardization.
+    The Random Forest model was trained on raw Kaggle values,
+    so altering them (clamping/min/max) breaks predictions.
     """
-    standardized = features.copy()
-    ranges = {
-        "N": {"min": 0.0, "max": 200.0},  # ppm
-        "P": {"min": 0.0, "max": 150.0},  # ppm
-        "K": {"min": 0.0, "max": 200.0},  # ppm
-        "ph": {"min": 3.5, "max": 10.0},  # pH units
-        "temperature": {"min": 8.0, "max": 44.0},  # °C
-        "humidity": {"min": 14.0, "max": 100.0},  # %
-        "rainfall": {"min": 20.0, "max": 300.0}   # mm
-    }
-    fallback_values = {
-        "N": 100.0,  # ppm
-        "P": 30.0,   # ppm
-        "K": 300.0,  # ppm
-        "ph": 6.5,   # pH units
-        "temperature": 25.0,  # °C
-        "humidity": 60.0,     # %
-        "rainfall": 100.0     # mm
-    }
-    for key, value in standardized.items():
-        if key in ranges:
-            min_val = ranges[key]["min"]
-            max_val = ranges[key]["max"]
-            if value < min_val:
-                standardized[key] = min_val
-            elif value > max_val:
-                standardized[key] = max_val
-        else:
-            standardized[key] = fallback_values.get(key, value)
-    return standardized
+    return features
+
+
 
 def print_standardization_summary(original: Dict[str, float], standardized: Dict[str, float]) -> None:
     """
@@ -283,43 +257,100 @@ def print_standardization_summary(original: Dict[str, float], standardized: Dict
     for key in original:
         logger.info(f"{key}: {original[key]} -> {standardized[key]}")
 
-def get_gemini_recommendation(soil_data, weather_data, crop=None):
+def get_grok_crop_recommendation(soil_data, weather_data, crop=None, location_name=None):
     """
-    Use Google Generative AI (Gemini) to generate expert farming tips and recommendations based on soil, weather, and crop data.
+    Use Grok API to generate farmer-friendly crop insights.
     """
-    if not GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not configured")
-        return None
-    
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        prompt = f"""
-        Given the following soil and weather data:
-        Soil: {soil_data}
-        Weather: {weather_data}
-        {f'Crop: {crop}' if crop else ''}
-        Provide actionable, expert farming tips and recommendations for this location. Be concise and practical.
-        """
-        # Using gemini-2.0-flash model for faster responses
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        logger.error(f"Error in Gemini API call: {str(e)}")
-        return None
 
-def test_gemini_connection():
-    """
-    Test function to verify Gemini API connectivity
-    """
-    if not GEMINI_API_KEY:
-        return "Google API key is not set. Please configure it in your environment."
-    
+    if not GROK_API_KEY:
+        return "Grok API key not configured."
+
+    url = "https://api.x.ai/v1/chat/completions"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROK_API_KEY}"
+    }
+
+    prompt = f"""
+You are an agricultural expert.
+Provide SIMPLE, PRACTICAL farming recommendations for farmers in {location_name}.
+
+Crop: {crop}
+
+Soil:
+- Nitrogen: {soil_data.get('n')}
+- Phosphorus: {soil_data.get('p')}
+- Potassium: {soil_data.get('k')}
+- pH: {soil_data.get('ph')}
+
+Weather:
+- Temperature: {weather_data.get('temperature')}°C
+- Humidity: {weather_data.get('humidity')}%
+- Rainfall: {weather_data.get('rainfall')} mm
+
+Return:
+1. Best planting time
+2. Soil preparation tips
+3. Optimal fertilizer schedule
+4. Watering/irrigation guidance
+5. Pests & disease alerts
+6. Expected growth timeline
+7. Harvesting tips
+"""
+
+    payload = {
+        "model": "grok-2-latest",
+        "messages": [
+            {"role": "system", "content": "You are a helpful agricultural advisor."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 600
+    }
+
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content("Test connection - respond with 'Connection successful'")
-        return response.text
+        response = requests.post(url, headers=headers, json=payload, timeout=20)
+        data = response.json()
+
+        # Extract text
+        return data["choices"][0]["message"]["content"]
+
     except Exception as e:
-        logger.error(f"Error testing Gemini connection: {str(e)}")
-        return f"Error testing Gemini connection: {str(e)}"
+        return f"Error contacting Grok API: {str(e)}"
+
+
+def test_grok_connection():
+    """
+    Test Grok API connectivity
+    """
+    if not GROK_API_KEY:
+        return "Grok API key is not set. Please configure it in your environment."
+
+    url = "https://api.x.ai/v1/chat/completions"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {GROK_API_KEY}"
+    }
+
+    payload = {
+        "model": "grok-2-latest",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Respond with: Connection successful"}
+        ],
+        "max_tokens": 10,
+        "temperature": 0
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+
+        if response.status_code != 200:
+            return f"Error: {response.status_code}, {response.text}"
+
+        return response.json()["choices"][0]["message"]["content"]
+
+    except Exception as e:
+        return f"Error testing Grok connection: {str(e)}"

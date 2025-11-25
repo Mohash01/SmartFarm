@@ -1,7 +1,14 @@
 from flask import Blueprint, render_template, request, jsonify, send_file, make_response
 from flask_login import current_user, login_required
 from flask_wtf import CSRFProtect
-from apps.data.util import get_lat_lon, fetch_soil_data, get_model_input_features, fetch_weather_data, standardize_model_inputs, print_standardization_summary, get_gemini_recommendation, test_gemini_connection
+from apps.data.util import (
+    get_lat_lon,
+    fetch_soil_data,
+    get_model_input_features,
+    fetch_weather_data,
+    get_grok_crop_recommendation
+
+)
 from apps.data.models import SoilData, WeatherData
 from apps.crop.models import Location
 from apps.model.models import Prediction
@@ -47,19 +54,94 @@ try:
     label_encoder = joblib.load(LABEL_ENCODER_PATH)
     logger.info(f"Model loaded successfully from {MODEL_PATH}")
     logger.info(f"Label encoder loaded successfully from {LABEL_ENCODER_PATH}")
+    try:
+        logger.info(f"Model feature names: {list(model.feature_names_in_)}")
+    except Exception:
+        logger.info("Model does not expose feature_names_in_")
     logger.info(f"Label encoder classes: {list(label_encoder.classes_)}")
 except Exception as e:
     logger.error(f"Error loading model or label encoder: {str(e)}")
     model = None
     label_encoder = None
 
+
 @blueprint.route('/chat')
 def chat():
-    return render_template('home/virtual-reality.html')
+    return render_template('home/chat.html')
+
+
+@blueprint.route('/chat-crop-advice', methods=['POST'])
+@csrf.exempt
+def chat_crop_advice():
+    """Handle chatbot requests for crop growing advice"""
+    try:
+        data = request.get_json()
+        crop = data.get('crop', '').strip()
+        message = data.get('message', '').strip()
+        location = data.get('location', '').strip()
+
+        if not crop or not message:
+            return jsonify({'success': False, 'error': 'Crop and message are required'}), 400
+
+        # Import OpenAI client
+        from openai import OpenAI
+        import os
+
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            logger.error("OpenAI API key not configured")
+            return jsonify({
+                'success': False,
+                'error': 'AI service not configured'
+            }), 500
+
+        client = OpenAI(api_key=api_key)
+
+        # Build the prompt
+        location_context = f" in {location}" if location else ""
+        system_prompt = f"""You are an expert agricultural advisor specializing in {crop} cultivation{location_context}. 
+Provide practical, actionable advice for farmers. Be specific and consider:
+- Local growing conditions{location_context if location else ""}
+- Best practices for planting, growing, and harvesting {crop}
+- Common pests and diseases and how to manage them
+- Optimal soil conditions, watering, and fertilization
+- Seasonal considerations and climate requirements
+- Post-harvest handling and storage
+
+Keep responses clear, practical, and easy to understand for farmers."""
+
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": message}
+            ],
+            max_tokens=500,
+            temperature=0.7
+        )
+
+        advice = response.choices[0].message.content
+        logger.info(f"Generated crop advice for {crop}: {message[:50]}...")
+
+        return jsonify({
+            'success': True,
+            'response': advice,
+            'crop': crop
+        })
+
+    except Exception as e:
+        logger.error(f"Error in chat_crop_advice: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to generate advice. Please try again.'
+        }), 500
+
 
 @blueprint.route('/predictions')
 def prediction():
     return render_template('predictions/ml_predictions_chat.html')
+
 
 @blueprint.route('/user/predictions', methods=['GET'])
 def get_user_predictions():
@@ -67,11 +149,11 @@ def get_user_predictions():
     logger.info(f"User predictions request - Authenticated: {current_user.is_authenticated}")
     if current_user.is_authenticated:
         logger.info(f"Current user ID: {current_user.id}, Username: {current_user.username}")
-    
+
     if not current_user.is_authenticated:
         logger.warning("Unauthenticated request to /user/predictions")
         return jsonify({'error': 'Authentication required'}), 401
-    
+
     try:
         # Fetch user's predictions with location info, ordered by most recent
         predictions = db.session.query(Prediction, Location).join(
@@ -81,7 +163,7 @@ def get_user_predictions():
         ).order_by(
             Prediction.timestamp.desc()
         ).limit(50).all()  # Limit to last 50 predictions
-        
+
         predictions_list = []
         for pred, loc in predictions:
             predictions_list.append({
@@ -99,7 +181,7 @@ def get_user_predictions():
                 'ph': pred.ph,
                 'rainfall': pred.rainfall
             })
-        
+
         return jsonify({'predictions': predictions_list}), 200
     except Exception as e:
         logger.error(f"Error fetching user predictions: {str(e)}")
@@ -118,16 +200,16 @@ def download_prediction_report(prediction_id):
             Prediction.id == prediction_id,
             Prediction.user_id == current_user.id
         ).first()
-        
+
         if not prediction_data:
             return jsonify({'error': 'Prediction not found or access denied'}), 404
-            
+
         prediction, location = prediction_data
-        
+
         # Create PDF in memory
         buffer = BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*inch)
-        
+
         # Define styles
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
@@ -138,7 +220,7 @@ def download_prediction_report(prediction_id):
             textColor=colors.HexColor('#2563eb'),
             alignment=1  # Center alignment
         )
-        
+
         heading_style = ParagraphStyle(
             'CustomHeading',
             parent=styles['Heading2'],
@@ -147,14 +229,14 @@ def download_prediction_report(prediction_id):
             textColor=colors.HexColor('#059669'),
             spaceBefore=20
         )
-        
+
         # Content to add to PDF
         content = []
-        
+
         # Title
         content.append(Paragraph("Smart Farma - Crop Prediction Report", title_style))
         content.append(Spacer(1, 20))
-        
+
         # Prediction Summary
         content.append(Paragraph("Prediction Summary", heading_style))
         summary_data = [
@@ -165,7 +247,7 @@ def download_prediction_report(prediction_id):
             ['Confidence Score', f"{(prediction.confidence_score * 100):.1f}%"],
             ['Suitability', 'Suitable' if prediction.is_suitable else 'Not Suitable'],
         ]
-        
+
         summary_table = Table(summary_data, colWidths=[2*inch, 3*inch])
         summary_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
@@ -182,7 +264,7 @@ def download_prediction_report(prediction_id):
         ]))
         content.append(summary_table)
         content.append(Spacer(1, 20))
-        
+
         # Soil Nutrients
         content.append(Paragraph("Soil Nutrients Analysis", heading_style))
         soil_data = [
@@ -192,7 +274,7 @@ def download_prediction_report(prediction_id):
             ['Potassium (K)', f"{prediction.potassium:.2f}", 'ppm'],
             ['pH Level', f"{prediction.ph:.2f}", ''],
         ]
-        
+
         soil_table = Table(soil_data, colWidths=[2*inch, 1.5*inch, 1*inch])
         soil_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
@@ -209,7 +291,7 @@ def download_prediction_report(prediction_id):
         ]))
         content.append(soil_table)
         content.append(Spacer(1, 20))
-        
+
         # Weather Conditions
         content.append(Paragraph("Weather Conditions", heading_style))
         weather_data = [
@@ -218,7 +300,7 @@ def download_prediction_report(prediction_id):
             ['Humidity', f"{prediction.humidity:.1f}", '%'],
             ['Rainfall', f"{prediction.rainfall:.1f}", 'mm'],
         ]
-        
+
         weather_table = Table(weather_data, colWidths=[2*inch, 1.5*inch, 1*inch])
         weather_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f3f4f6')),
@@ -235,7 +317,7 @@ def download_prediction_report(prediction_id):
         ]))
         content.append(weather_table)
         content.append(Spacer(1, 20))
-        
+
         # Footer
         footer_style = ParagraphStyle(
             'Footer',
@@ -245,24 +327,54 @@ def download_prediction_report(prediction_id):
             alignment=1  # Center alignment
         )
         content.append(Spacer(1, 40))
+
+        # Add actionable insights from Grok API
+        try:
+            actionable_insights = get_grok_crop_recommendation(
+                soil_data={
+                    'n': prediction.nitrogen,
+                    'p': prediction.phosphorus,
+                    'k': prediction.potassium,
+                    'ph': prediction.ph,
+                },
+                weather_data={
+                    'temperature': prediction.temperature,
+                    'humidity': prediction.humidity,
+                    'rainfall': prediction.rainfall,
+                },
+                crop=prediction.crop_recommended,
+                location_name=location.name
+            )
+
+            insights_lines = actionable_insights.split('\n')
+            content.append(Paragraph("Actionable Insights from Grok API", heading_style))
+            for line in insights_lines:
+                if line.strip():
+                    content.append(Paragraph(line.strip(), styles['Normal']))
+                    
+            content.append(Spacer(1, 20))
+        except Exception as e:
+            logger.error(f"Error fetching Grok actionable insights for PDF: {str(e)}")
+
         content.append(Paragraph(
             f"Report generated by Smart Farma on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
             footer_style
         ))
-        
+
         # Build PDF
         doc.build(content)
-        
+
         # Prepare file for download
         buffer.seek(0)
-        
+
         # Create response
         response = make_response(buffer.getvalue())
         response.headers['Content-Type'] = 'application/pdf'
         response.headers['Content-Disposition'] = f'attachment; filename=prediction_report_{prediction_id}_{datetime.now().strftime("%Y%m%d")}.pdf'
-        
+
         return response
-        
+
+
     except Exception as e:
         logger.error(f"Error generating PDF report: {str(e)}")
         return jsonify({'error': 'Failed to generate PDF report'}), 500
@@ -272,7 +384,7 @@ def download_prediction_report(prediction_id):
 def locations():
     # Fetch all locations
     locations = Location.query.all()
-    
+
     # Prepare location data for map
     location_data = []
     for loc in locations:
@@ -337,7 +449,7 @@ def locations():
      .order_by(Location.id, func.count(Prediction.id).desc())\
      .distinct(Location.id)\
      .all()
-    
+
     most_common_crop_dict = {row.id: str(row.crop_recommended) if row.crop_recommended else 'None' for row in most_common_crop}
 
     summary_data = []
@@ -359,11 +471,14 @@ def locations():
         soil_chart_data=soil_chart_data,
         summary_data=summary_data
     )
+
+
 @blueprint.route('/soil')
 def soil():
     # Query all soil data records
     soil_records = SoilData.query.all()
     return render_template('soil/view_soil.html', soil_records=soil_records)
+
 
 @blueprint.route('/weather')
 def weather():
@@ -371,17 +486,19 @@ def weather():
     weather_records = WeatherData.query.all()
     return render_template('weather/view_weather.html', weather_records=weather_records)
 
+
 @blueprint.route('/geocode')
 def geocode():
     address = request.args.get('address')
     if not address:
         return jsonify({'error': 'Address parameter is required'}), 400
-    
+
     result = get_lat_lon(address)
     if not result:
         return jsonify({'error': 'No geocoding result found'}), 404
-    
+
     return jsonify(result)
+
 
 @blueprint.route('/soil-info', methods=['GET'])
 def get_soil_info():
@@ -449,15 +566,16 @@ def get_soil_info():
         },
         'soil': soil_data
     }
-    
+
     return jsonify(response_data)
+
 
 @blueprint.route('/weather-info', methods=['GET'])
 def get_weather_info():
     city = request.args.get('city')
     if not city:
         return jsonify({"error": "City parameter is required"}), 400
-    
+
     # Get geolocation for city
     geo_data = get_lat_lon(city)
     if not geo_data or 'lat' not in geo_data or 'lon' not in geo_data:
@@ -492,7 +610,7 @@ def get_weather_info():
     weather = fetch_weather_data(city)
     if all(value is None for value in weather.values()):
         return jsonify({"error": "Failed to fetch weather data"}), 500
-    
+
     # Save weather data to database
     weather_record = WeatherData(
         location_id=location.id,
@@ -514,6 +632,7 @@ def get_weather_info():
         "city": city,
         "weather": weather
     })
+
 
 @blueprint.route('/model-input', methods=['GET'])
 def model_input():
@@ -555,7 +674,7 @@ def model_input():
     # Fetch soil and weather data
     soil_data = fetch_soil_data(lat, lon)
     weather_data = fetch_weather_data(location_name)
-    
+
     if soil_data is None or all(value is None for value in weather_data.values()):
         return jsonify({'error': 'Failed to fetch complete model input features'}), 500
 
@@ -598,15 +717,14 @@ def model_input():
     if not features:
         return jsonify({'error': 'Failed to fetch complete model input features'}), 500
 
-    standardized_features = standardize_model_inputs(features)
-    print_standardization_summary(features, standardized_features)
-
+    # IMPORTANT: return raw features (do NOT standardize / clamp values here)
     return jsonify({
         'location': location_name,
         'location_id': location.id,
-        'features': standardized_features,
+        'features': features,
         'original_features': features
     }), 200
+
 
 @blueprint.route('/predict', methods=['GET', 'POST'])
 @csrf.exempt
@@ -619,7 +737,7 @@ def predict():
             'required_fields': {
                 'features': {
                     'n': 'Nitrogen (0-200 ppm)',
-                    'p': 'Phosphorous (0-150 ppm)', 
+                    'p': 'Phosphorous (0-150 ppm)',
                     'k': 'Potassium (0-200 ppm)',
                     'ph': 'Soil pH (0-14)',
                     'temperature': 'Temperature (-10 to 50°C)',
@@ -629,217 +747,178 @@ def predict():
                 'location_id': 'Location ID (integer)',
                 'location': 'Location name (string)',
                 'desired_crop': 'Desired crop name (optional, string)'
-            },
-            'example_request': {
-                'features': {
-                    'n': 90,
-                    'p': 42,
-                    'k': 43,
-                    'ph': 6.5,
-                    'temperature': 25,
-                    'humidity': 80,
-                    'rainfall': 200
-                },
-                'location_id': 1,
-                'location': 'Sample Location',
-                'desired_crop': 'wheat'
             }
         }), 200
 
     if not model or not label_encoder:
         return jsonify({'error': 'Model or label encoder not loaded'}), 500
 
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'JSON data is required in the request body'}), 400
-    
-    features = data.get('features', data)
-    desired_crop = data.get('desired_crop', '').lower().strip()
-    location_id = data.get('location_id')
-    location_name = data.get('location')
-
-    required_features = ['n', 'p', 'k', 'ph', 'temperature', 'humidity', 'rainfall']
-    
-    # Normalize feature keys to lowercase
-    features = {key.lower(): value for key, value in features.items()}
-    
-    if not all(key in features for key in required_features):
-        missing = [key for key in required_features if key not in features]
-        return jsonify({'error': f'Missing required features: {missing}'}), 400
-
-    if not location_id or not location_name:
-        return jsonify({'error': 'Location ID and name are required'}), 400
-
-    feature_ranges = {
-        'n': (0, 200),  # ppm
-        'p': (0, 150),  # ppm
-        'k': (0, 200),  # ppm
-        'ph': (0, 14),  # pH
-        'temperature': (-10, 50),  # Celsius
-        'humidity': (0, 100),  # Percentage
-        'rainfall': (0, 1000)  # mm
-    }
-    
     try:
-        feature_values = [float(features[key]) for key in required_features]
-        
-        for key, value in zip(required_features, feature_values):
-            min_val, max_val = feature_ranges[key]
-            if not (min_val <= value <= max_val):
-                return jsonify({'error': f'Value for {key} ({value}) is out of valid range [{min_val}, {max_val}]'}), 400
-        
-        # Verify location exists
-        location = Location.query.get(location_id)
-        if not location:
-            # Try to create location if it doesn't exist
-            geo_data = get_lat_lon(location_name)
-            if not geo_data or 'lat' not in geo_data or 'lon' not in geo_data:
-                return jsonify({'error': 'Failed to get geolocation data for location'}), 500
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON data is required in the request body'}), 400
 
-            lat = geo_data.get('lat')
-            lon = geo_data.get('lon')
-            display_name = geo_data.get('display_name', location_name)
+        features = data.get('features', data)
+        location_id = data.get('location_id')
+        location_name = data.get('location')
 
-            location = Location.query.filter_by(latitude=lat, longitude=lon).first()
-            if not location:
-                location = Location(
-                    name=display_name,
-                    latitude=lat,
-                    longitude=lon,
-                    description=f"Location for {display_name}"
-                )
-                try:
-                    db.session.add(location)
-                    db.session.commit()
-                    logger.info(f"Created new location: {display_name}")
-                except IntegrityError:
-                    db.session.rollback()
-                    location = Location.query.filter_by(latitude=lat, longitude=lon).first()
-                    logger.info(f"Location already exists for lat={lat}, lon={lon}")
-                except Exception as e:
-                    db.session.rollback()
-                    logger.error(f"Error saving location to database: {str(e)}")
-                    return jsonify({'error': 'Failed to save location to database'}), 500
+        required_features = ['n', 'p', 'k', 'ph', 'temperature', 'humidity', 'rainfall']
 
-        feature_df = pd.DataFrame([feature_values], columns=required_features)
-        
-        logger.info(f"Processing features with shape {feature_df.shape}:")
-        logger.info(f"Column order: {list(feature_df.columns)}")
-        logger.info(f"Values: {feature_df.iloc[0].tolist()}")
-        
-        feature_array = feature_df[required_features].to_numpy()
-        probabilities = model.predict_proba(feature_array)[0]
-        predicted_class_idx = model.predict(feature_array)[0]
-        
-        if predicted_class_idx >= len(label_encoder.classes_):
-            logger.error(f"Predicted class index {predicted_class_idx} is out of bounds for classes: {label_encoder.classes_}")
-            return jsonify({'error': 'Invalid prediction index from model'}), 500
+        # lowercase keys
+        features = {k.lower(): v for k, v in features.items()}
 
-        predicted_crop = label_encoder.inverse_transform([predicted_class_idx])[0]
-        confidence = float(probabilities[predicted_class_idx])
+        if not all(k in features for k in required_features):
+            missing = [k for k in required_features if k not in features]
+            return jsonify({'error': f'Missing required features: {missing}'}), 400
 
-        top_indices = np.argsort(probabilities)[-4:][::-1]
-        predictions = []
-        for idx in top_indices:
-            if idx < len(label_encoder.classes_):
-                predictions.append({
-                    'crop': label_encoder.inverse_transform([idx])[0],
-                    'probability': float(probabilities[idx])
-                })
-            else:
-                logger.warning(f"Skipping invalid class index {idx}")
+        if not location_id or not location_name:
+            return jsonify({'error': 'Location ID and name are required'}), 400
 
-        if predictions and predictions[0]['crop'] != predicted_crop:
-            predictions = sorted(predictions, key=lambda x: x['crop'] == predicted_crop, reverse=True)
-
-        suitability = None
-        if desired_crop:
-            try:
-                if desired_crop not in label_encoder.classes_:
-                    suitability = {
-                        'crop': desired_crop,
-                        'status': 'unknown',
-                        'message': 'The specified crop is not recognized by the model.'
-                    }
-                else:
-                    desired_class_idx = label_encoder.transform([desired_crop])[0]
-                    desired_confidence = probabilities[desired_class_idx]
-                    if desired_confidence >= 0.7:
-                        status = 'highly suitable'
-                        message = f"{desired_crop.capitalize()} is highly suitable for your location (confidence: {(desired_confidence * 100):.1f}%)."
-                    elif desired_confidence >= 0.3:
-                        status = 'moderately suitable'
-                        message = f"{desired_crop.capitalize()} is moderately suitable for your location (confidence: {(desired_confidence * 100):.1f}%). Consider the recommended crops for better results."
-                    else:
-                        status = 'not suitable'
-                        message = f"{desired_crop.capitalize()} is not suitable for your location (confidence: {(desired_confidence * 100):.1f}%). The recommended crops are better suited."
-                    suitability = {
-                        'crop': desired_crop,
-                        'status': status,
-                        'message': message,
-                        'confidence': float(desired_confidence)
-                    }
-            except Exception as e:
-                logger.error(f"Error checking crop suitability: {str(e)}")
-                suitability = {
-                    'crop': desired_crop,
-                    'status': 'error',
-                    'message': 'Could not evaluate suitability for this crop.'
-                }
-
-        # Save prediction to database
-        from flask_login import current_user
-        prediction_record = Prediction(
-            location_id=location.id,
-            user_id=current_user.id if current_user.is_authenticated else None,
-            nitrogen=features['n'],
-            phosphorus=features['p'],
-            potassium=features['k'],
-            ph=features['ph'],
-            temperature=features['temperature'],
-            humidity=features['humidity'],
-            rainfall=features['rainfall'],
-            crop_recommended=predicted_crop,
-            is_suitable=suitability['status'] in ['highly suitable', 'moderately suitable'] if suitability else True,
-            confidence_score=confidence
-        )
-        try:
-            db.session.add(prediction_record)
-            db.session.commit()
-            logger.info(f"Saved prediction for location_id={location.id}: crop={predicted_crop}, confidence={confidence}")
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error saving prediction to database: {str(e)}")
-            return jsonify({'error': 'Failed to save prediction to database'}), 500
-
-        # --- Gemini Integration ---
-        # Compose soil and weather data for Gemini
-        soil_data = {k: features[k] for k in ['n', 'p', 'k', 'ph']}
-        weather_data = {k: features[k] for k in ['temperature', 'humidity', 'rainfall']}
-        
-        # Only call Gemini if API key is configured
-        gemini_recommendation = None
-        if os.getenv('GEMINI_API_KEY'):
-            try:
-                gemini_recommendation = get_gemini_recommendation(soil_data, weather_data, predicted_crop)
-            except Exception as e:
-                logger.warning(f"Gemini API error (skipping): {str(e)}")
-                gemini_recommendation = None
-
-        response = {
-            'predictions': predictions,
-            'suitability': suitability,
-            'openai_recommendation': gemini_recommendation
+        # === BUILD INPUT FOR MODEL ===
+        input_map = {
+            'N': float(features['n']),
+            'P': float(features['p']),
+            'K': float(features['k']),
+            'temperature': float(features['temperature']),
+            'humidity': float(features['humidity']),
+            'ph': float(features['ph']),
+            'rainfall': float(features['rainfall']),
         }
-        logger.info(f"Prediction successful: {response}")
-        return jsonify(response), 200
+
+        try:
+            model_cols = list(model.feature_names_in_)
+        except:
+            model_cols = ['N', 'P', 'K', 'temperature', 'humidity', 'ph', 'rainfall']
+
+        input_df = pd.DataFrame([input_map])[model_cols]
+        feature_array = input_df.to_numpy()
+
+        # --- MODEL PREDICTION ---
+        probabilities = model.predict_proba(feature_array)[0]
+        model_classes = model.classes_
+        predicted_label = model.predict(feature_array)[0]
+
+        # Decode label
+        if isinstance(predicted_label, (int, np.integer)):
+            predicted_crop = label_encoder.inverse_transform([predicted_label])[0]
+        else:
+            predicted_crop = str(predicted_label)
+
+        # ----------------------------------------------------------
+        # 🔥 HYBRID SMART-KENYA RULE ENGINE (Option 1 fix)
+        # ----------------------------------------------------------
+        corrected_scores = {}
+        temp = float(features["temperature"])
+        rainfall = float(features["rainfall"])
+        humidity = float(features["humidity"])
+        ph = float(features["ph"])
+
+        for idx, label in enumerate(model_classes):
+
+            # decode each crop
+            if isinstance(label, (int, np.integer)):
+                crop_name = label_encoder.inverse_transform([label])[0]
+            else:
+                crop_name = str(label)
+
+            prob = float(probabilities[idx])
+            suitability = 1.0
+
+            # RULE 1 — Penalize apples everywhere
+            if crop_name.lower() == "apple":
+                prob *= 0.15
+
+            # RULE 2 — High temperature areas
+            if temp > 22:
+                if crop_name.lower() in ["banana", "mango", "cassava", "pineapple", "papaya", "sugarcane"]:
+                    suitability += 0.35
+                if crop_name.lower() in ["maize", "sorghum", "millet"]:
+                    suitability += 0.15
+
+            # RULE 3 — Cold areas
+            if temp < 18:
+                if crop_name.lower() in ["tea", "potatoes", "cabbage", "peas"]:
+                    suitability += 0.40
+                if crop_name.lower() in ["wheat", "barley"]:
+                    suitability += 0.25
+
+            # RULE 4 — Low rainfall
+            if rainfall < 5:
+                if crop_name.lower() in ["sorghum", "millet", "pigeon pea", "cowpeas"]:
+                    suitability += 0.40
+
+            # RULE 5 — High rainfall
+            if rainfall > 15:
+                if crop_name.lower() in ["rice", "sugarcane"]:
+                    suitability += 0.30
+
+            # RULE 6 — Acidic soils
+            if ph < 6:
+                if crop_name.lower() in ["tea", "potatoes"]:
+                    suitability += 0.25
+                if crop_name.lower() in ["maize"]:
+                    suitability += 0.10
+
+            # HYBRID SCORE: 70% ML + 30% Rules
+            final_score = (0.7 * prob) + (0.3 * suitability)
+            corrected_scores[crop_name] = final_score
+
+        # Sorted top-4 final recommendations
+        sorted_crops = sorted(corrected_scores.items(), key=lambda x: x[1], reverse=True)
+        predictions = [
+            {"crop": crop, "probability": float(score)}
+            for crop, score in sorted_crops[:4]
+        ]
+
+        # Save prediction
+        prediction_record = Prediction(
+            location_id=location_id,
+            user_id=current_user.id if current_user.is_authenticated else None,
+            nitrogen=float(features['n']),
+            phosphorus=float(features['p']),
+            potassium=float(features['k']),
+            ph=float(features['ph']),
+            temperature=float(features['temperature']),
+            humidity=float(features['humidity']),
+            rainfall=float(features['rainfall']),
+            crop_recommended=predictions[0]["crop"],
+            is_suitable=True,
+            confidence_score=predictions[0]["probability"],
+        )
+        db.session.add(prediction_record)
+        db.session.commit()
+
+        # Fetch Grok actionable insights
+        try:
+            grok_recommendation = get_grok_crop_recommendation(
+                soil_data={
+                    'n': float(features['n']),
+                    'p': float(features['p']),
+                    'k': float(features['k']),
+                    'ph': float(features['ph'])
+                },
+                weather_data={
+                    'temperature': float(features['temperature']),
+                    'humidity': float(features['humidity']),
+                    'rainfall': float(features['rainfall'])
+                },
+                crop=predictions[0]["crop"],
+                location_name=location_name
+            )
+        except Exception as grok_e:
+            logger.error(f"Grok recommendation error: {str(grok_e)}")
+            grok_recommendation = "Failed to fetch actionable insights from Grok API."
+
+        return jsonify({
+            'predictions': predictions,
+            'suitability': None,
+            'openai_recommendation': None,
+            'grok_recommendation': grok_recommendation
+        }), 200
 
     except Exception as e:
         logger.error(f"Prediction error: {str(e)}. Input features: {features}")
         return jsonify({'error': f'Prediction error: {str(e)}'}), 500
 
-@blueprint.route('/test-gemini', methods=['GET'])
-def test_gemini():
-    """Test route to verify Gemini API connectivity"""
-    result = test_gemini_connection()
-    return jsonify({"status": "success", "result": result})
+
+

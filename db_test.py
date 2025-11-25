@@ -373,7 +373,7 @@ for location in locations_to_test:
     import os
 import requests
 
-# Replace with your actual WeatherAPI key
+#  WeatherAPI key
 WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY", "a8f656b81fb548bf82c125713251705")
 
 

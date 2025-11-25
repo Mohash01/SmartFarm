@@ -16,15 +16,9 @@ class Config(object):
 
     # Database Configuration
     try:
-        # Get database configuration from environment variables
-        DB_HOST = os.getenv('DB_HOST', '127.0.0.1')
-        DB_PORT = os.getenv('DB_PORT', '5432')
-        DB_USERNAME = os.getenv('DB_USERNAME', 'postgres')
-        DB_PASSWORD = os.getenv('DB_PASSWORD', '')
-        DB_DATABASE = os.getenv('DB_DATABASE', 'smartfarma_db')
-        
-        # Construct PostgreSQL connection string
-        SQLALCHEMY_DATABASE_URI = f"postgresql+psycopg2://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_DATABASE}"
+       
+        # Construct mySQL connection string
+        SQLALCHEMY_DATABASE_URI = "mysql+pymysql://root:@127.0.0.1:3306/smartfarma_db"
     except Exception as e:
         print('> Error: DBMS Exception: ' + str(e))
         raise e 
